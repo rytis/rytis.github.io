@@ -1,5 +1,0 @@
-baseURL = "https://journal.pulegium.eu/"
-languageCode = "en-us"
-title = "Journal"
-theme = "pulegium"
-publishDir = "docs"
