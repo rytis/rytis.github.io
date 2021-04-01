@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Records on Pages</title>
+    <link>https://pages.pulegium.eu/journal/</link>
+    <description>Recent content in Records on Pages</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <copyright>Rytis Sileika</copyright>
+    
+	<atom:link href="https://pages.pulegium.eu/journal/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+  </channel>
+</rss>
