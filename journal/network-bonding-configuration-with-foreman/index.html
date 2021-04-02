@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/">Home</a>
+  
+  <a href="/journal/">Journal</a>
+  
+  <a href="/publications/">Publications</a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>Network Bonding Configuration With Foreman</h2>
+  <p>This post is mostly a note to self. The snippets are kindly provided by user <em>schewara</em> who posted them to #theforeman IRC channel. Many thanks for sharing these snippets, they have saved me a lot of time, and hopefully will be usefull for other people as well!</p>
+<p>What I was trying to achieve is multi-NIC with bonding configuration in Foreman/Puppet.</p>
+<p>One way is to leave this configuration entirelly to Puppet. Another way is to configure the interfaces at the kicstart phase, which is a safer option.</p>
+<p>So the snippets are below, verbatim, I will update the post if/when I change them.</p>
+<p>Foreman kicstart bit (post install section):</p>
+<pre><code>..
+..
+SYSTEM_INFO=$(dmidecode -s system-manufacturer)
+if [[ &quot;$SYSTEM_INFO&quot; == &quot;HP&quot; ]]; then
+  # remove ifcfg Files and udev rules if exist
+  rm -f /etc/sysconfig/network-scripts/ifcfg-eth*
+  rm -f /etc/udev/rules.d/70-persistent-net.rules
+  
+  wget -P /etc/yum.repos.d -nc -nd -q http://yum.repo.somewhere/repofiles/3rdParty-hp-spp.repo
+  yum install -y -e 0 hpsmh hp-smh-templates hp-health hp-snmp-agents hpdiags hponcfg hpacucli cpqacuxe glibc.i686
+  
+  modprobe hpilo
+  
+  # Generate ILO 
+  cat &gt; /tmp/ilo-parser.py &lt;&lt; EOF
+&lt;%= snippet(&quot;ILO-IFace-Parser&quot;) %&gt;
+EOF
+  
+  &lt;%= @osver &lt;= 5 ? &quot;python26&quot; : &quot;python&quot; -%&gt; /tmp/ilo-parser.py
+  
+  # CLEAR the IML Log
+  hpasmcli -s &quot;clear iml&quot;
+  
+elif [[ &quot;$SYSTEM_INFO&quot; =~ &quot;VMware&quot; ]]; then
+..
+..
+</code></pre>
+<p>Snippet that handles bonding configuration (&ldquo;ILO-IFacw-Parser&rdquo;):</p>
+<pre><code>#!/usr/bin/env python
+
+# WARNING: Doesn't work with python3
+
+from xml.etree.ElementTree import parse
+import sys
+import re
+import subprocess
+import glob
+
+def parse_ilo_interfaces(filename):
+#===============================================================================
+# Interfaces XML Snipped
+# ...
+# &lt;SMBIOS_RECORD B64_DATA=&quot;0RQA0QADACJkmKx6AAUAImSYrHgAAA==&quot; TYPE=&quot;209&quot;&gt;
+#  &lt;FIELD NAME=&quot;Subject&quot; VALUE=&quot;Embedded NIC MAC Assignment&quot; /&gt;
+#  &lt;FIELD NAME=&quot;Port&quot; VALUE=&quot;1&quot; /&gt;
+#  &lt;FIELD NAME=&quot;MAC&quot; VALUE=&quot;00-22-64-98-AC-7A&quot; /&gt;
+#  &lt;FIELD NAME=&quot;Port&quot; VALUE=&quot;2&quot; /&gt;
+#  &lt;FIELD NAME=&quot;MAC&quot; VALUE=&quot;00-22-64-98-AC-78&quot; /&gt;
+#  &lt;FIELD NAME=&quot;Port&quot; VALUE=&quot;iLO&quot; /&gt;
+#  &lt;FIELD NAME=&quot;MAC&quot; VALUE=&quot;00-22-64-97-87-8A&quot; /&gt;
+# &lt;/SMBIOS_RECORD&gt;
+# ...
+#===============================================================================
+    ifaces = {}
+    port = &quot;&quot;
+    
+    tree = parse(filename)
+    for arecord in tree.findall(&quot;SMBIOS_RECORD&quot;):
+        if arecord.attrib[&quot;TYPE&quot;] == &quot;209&quot;:
+            childs = arecord.getchildren()
+    
+    
+    for ch in childs:
+        if ch.attrib[&quot;NAME&quot;] == &quot;Port&quot;:
+            port = ch.attrib[&quot;VALUE&quot;]
+        if ch.attrib[&quot;NAME&quot;] == &quot;MAC&quot;:
+            ifaces[port] = ch.attrib[&quot;VALUE&quot;]
+    
+    # remove iLo entry from the dict
+    del ifaces[&quot;iLO&quot;]
+    
+    #print(ifaces)
+    
+    # fix index number and mac formatting
+    macp = re.compile('-')
+    for id, mac in ifaces.items():
+        ifaces[int(id) - 1] = macp.sub(':', mac).upper()
+        del ifaces[id]
+        
+    #print(ifaces)
+    #print
+    
+    return ifaces
+
+def gen_config_params(type, ifacenr=&quot;0&quot;, ifacemac=&quot;&quot;, ip=&quot;&quot;, nm=&quot;&quot;, gw=&quot;&quot;):
+    # TODO REFACTOR
+    
+    if type == &quot;eth&quot;:
+        cfg_settings = {
+                    &quot;DEVICE&quot;: type + ifacenr,
+                    &quot;HWADDR&quot;: ifacemac,
+                    &quot;ONBOOT&quot;: &quot;yes&quot;,
+                    &quot;BOOTPROTO&quot;: &quot;none&quot;,
+                    &quot;USERCTL&quot;: &quot;no&quot;,
+                    &quot;NM_CONTROLLED&quot;: &quot;no&quot;,
+                    &quot;SLAVE&quot;: &quot;yes&quot;,
+                    &quot;MASTER&quot;: &quot;bond0&quot;
+        }
+    elif type == &quot;bond&quot;:
+        cfg_settings = {
+                    &quot;DEVICE&quot;: type + ifacenr,
+                    &quot;ONBOOT&quot;: &quot;yes&quot;,
+                    &quot;BOOTPROTO&quot;: &quot;none&quot;,
+                    &quot;USERCTL&quot;: &quot;no&quot;,
+                    &quot;NM_CONTROLLED&quot;: &quot;no&quot;,
+                    &quot;BONDING_OPTS&quot;: &quot;miimon=100 mode=1&quot;,
+                    &quot;IPADDR&quot;: ip,
+                    &quot;NETMASK&quot;: nm,
+                    &quot;GATEWAY&quot;: gw
+        }
+    return cfg_settings
+
+def write_cfgfile(path, ifacelist):
+    # Write the file new
+    for ifaces in ifacelist:
+        print(&quot;writing: ifcfg-&quot; + ifaces[&quot;DEVICE&quot;])
+        
+        with open(path + &quot;ifcfg-&quot; + ifaces[&quot;DEVICE&quot;], 'w') as f:
+            for key, value in ifaces.items():
+                f.write(key + '=&quot;' + value + '&quot;\n')
+
+def get_ilo_hostinfo(ilooutfile):
+    xmlrequest=&quot;&quot;&quot;&lt;RIBCL version=&quot;2.21&quot;&gt;
+    &lt;LOGIN USER_LOGIN=&quot;adminname&quot; PASSWORD=&quot;password&quot;&gt;
+    &lt;SERVER_INFO MODE=&quot;READ&quot; &gt;
+    &lt;GET_HOST_DATA /&gt;
+    &lt;/SERVER_INFO&gt;
+    &lt;/LOGIN&gt;
+    &lt;/RIBCL&gt;&quot;&quot;&quot;
+    
+    subprocess.Popen([&quot;hponcfg&quot;, &quot;-i&quot;, &quot;-l&quot;, ilooutfile], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(xmlrequest)
+
+def parse_udev_interfaces():
+    sys_files = glob.glob('/sys/class/net/eth*/address')
+    
+    maclist = []
+    
+    for infile in sys_files:
+        with open(infile, 'r') as f:
+            maclist.append(f.read().rstrip().upper())
+    
+    for mac in sorted(maclist):
+        if mac not in ifacedict.values():
+            ifacedict[len(ifacedict)] = mac
+
+if __name__ == '__main__':
+    # TODO: call hponcfg and generate XML-File or parse XML Output directly
+    path = &quot;/etc/sysconfig/network-scripts/&quot;
+    ilooutfile = &quot;/tmp/iloout.xml&quot;
+    
+    ifacedict = {}
+    ifacelist = []
+    
+    # supplied by Foreman
+    ipaddr = '&lt;%= @host.ip -%&gt;'
+    netmask = '&lt;%= @host.params[&quot;netmask&quot;] -%&gt;'
+    gateway = '&lt;%= @host.params[&quot;gateway&quot;] -%&gt;'
+    
+    # testing
+    #ipaddr = '192.168.0.10'
+    #netmask = '255.255.255.0'
+    #gateway = '192.168.0.254'
+
+    get_ilo_hostinfo(ilooutfile)
+    ifacedict = parse_ilo_interfaces(ilooutfile)
+    
+    parse_udev_interfaces()
+    
+    # Bonding Interface
+    cfg_params = gen_config_params(&quot;bond&quot;, &quot;0&quot;, ip=ipaddr, nm=netmask, gw=gateway)
+    ifacelist.append(cfg_params)
+    
+    # Ethernet Interfaces
+    for nr, mac in ifacedict.items():
+        cfg_params = gen_config_params(&quot;eth&quot;, str(nr), mac)
+        if len(ifacedict) == 4 and nr % 2:
+            del cfg_params[&quot;SLAVE&quot;]
+            del cfg_params[&quot;MASTER&quot;]
+            cfg_params[&quot;ONBOOT&quot;] = &quot;no&quot;
+        ifacelist.append(cfg_params)
+        
+    write_cfgfile(path, ifacelist)
+</code></pre>
+<p>As a side note, the HP SPP packages are available on <a href="http://downloads.linux.hp.com/SDR/downloads/SPP/rhel/$release/$arch/current/">HP site</a>.</p>
+
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>

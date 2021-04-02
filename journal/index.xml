@@ -33,5 +33,16 @@ I used the Requests library to make the initial request for a given URL. If the 
 Obviously you can set up a VPN server on the remote machine and connect to it, but it can be a bit fiddly.</description>
     </item>
     
+    <item>
+      <title>Network Bonding Configuration With Foreman</title>
+      <link>https://pages.pulegium.eu/journal/network-bonding-configuration-with-foreman/</link>
+      <pubDate>Mon, 25 Jun 2012 13:44:58 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/network-bonding-configuration-with-foreman/</guid>
+      <description>This post is mostly a note to self. The snippets are kindly provided by user schewara who posted them to #theforeman IRC channel. Many thanks for sharing these snippets, they have saved me a lot of time, and hopefully will be usefull for other people as well!
+What I was trying to achieve is multi-NIC with bonding configuration in Foreman/Puppet.
+One way is to leave this configuration entirelly to Puppet. Another way is to configure the interfaces at the kicstart phase, which is a safer option.</description>
+    </item>
+    
   </channel>
 </rss>
