@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/">Home</a>
+  
+  <a href="/journal/">Journal</a>
+  
+  <a href="/publications/">Publications</a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>Quick Way to Check for Url Redirects</h2>
+  <p>Recently I had to go through a bunch of URLs and identify whether or not they redirect to another URL. Since the list was rather long (several hundred entries), I thought I should rather write a script to do this for me.</p>
+<p>I used the <a href="http://docs.python-requests.org/en/latest/">Requests</a> library to make the initial request for a given URL. If the response code was <code>3XX</code>, then I assumed it is being redirected. There are a couple of other edge cases (timeouts and generic connection errors, either due to non-existent domain, or network error) that the script attempts to cover for.</p>
+<p>The script accepts a single parameter, which should be a filename containing URL strings. If the filename is not provided, the script will look for <code>domains.txt</code> in the current directory.</p>
+<pre><code>#!/usr/bin/env python
+
+import sys
+import requests
+
+
+def check_for_redirects(url):
+    try:
+        r = requests.get(url, allow_redirects=False, timeout=0.5)
+        if 300 &lt;= r.status_code &lt; 400:
+            return r.headers['location']
+        else:
+            return '[no redirect]'
+    except requests.exceptions.Timeout:
+        return '[timeout]'
+    except requests.exceptions.ConnectionError:
+        return '[connection error]'
+
+
+def check_domains(urls):
+    for url in urls:
+        url_to_check = url if url.startswith('http') else &quot;http://%s&quot; % url
+        redirect_url = check_for_redirects(url_to_check)
+        print(&quot;%s =&gt; %s&quot; % (url_to_check, redirect_url))
+
+
+if __name__ == '__main__':
+    fname = 'domains.txt'
+    try:
+        fname = sys.argv[1]
+    except IndexError:
+        pass
+    urls = (l.strip() for l in open(fname).readlines())
+    check_domains(urls)
+</code></pre>
+<p>Below is an example of URLs. If protocol is not defined, <code>http</code> will be assumed.</p>
+<pre><code>google.com
+http://gmail.com
+www.ibm.com
+redhat.com
+example.com
+i-believe-this-domain-does-not-exist-123abc.com
+</code></pre>
+<p>And the results:</p>
+<pre><code>http://google.com =&gt; http://www.google.com/
+http://gmail.com =&gt; http://mail.google.com/mail/
+http://www.ibm.com =&gt; http://www.ibm.com/us/en/
+http://redhat.com =&gt; http://www.redhat.com/
+http://example.com =&gt; http://www.iana.org/domains/example/
+http://i-believe-this-domain-does-not-exist-123abc.com =&gt; [connection error]
+</code></pre>
+
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>

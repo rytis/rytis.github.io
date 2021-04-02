@@ -21,5 +21,15 @@
       <description></description>
     </item>
     
+    <item>
+      <title>Quick Way to Check for Url Redirects</title>
+      <link>https://pages.pulegium.eu/journal/quick-way-to-check-for-url-redirects/</link>
+      <pubDate>Wed, 13 Mar 2013 13:33:10 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/quick-way-to-check-for-url-redirects/</guid>
+      <description>Recently I had to go through a bunch of URLs and identify whether or not they redirect to another URL. Since the list was rather long (several hundred entries), I thought I should rather write a script to do this for me.
+I used the Requests library to make the initial request for a given URL. If the response code was 3XX, then I assumed it is being redirected. There are a couple of other edge cases (timeouts and generic connection errors, either due to non-existent domain, or network error) that the script attempts to cover for.</description>
+    </item>
+    
   </channel>
 </rss>
