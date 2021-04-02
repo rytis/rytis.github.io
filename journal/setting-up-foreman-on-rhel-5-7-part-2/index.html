@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/"><strong>Home</strong></a>
+  
+  <a href="/journal/"><strong>Journal</strong></a>
+  
+  <a href="/publications/"><strong>Publications</strong></a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>Setting Up Foreman on RHEL 5.7 Part 2</h2>
+  <p>In Part 1 we installed and configured Puppet. We have also set up puppet to write host configuration data to a PostgreSQL database using storedconfig.</p>
+<p>Today, I&rsquo;m going to show you how to install and configure:</p>
+<ul>
+<li>Foreman</li>
+<li>Foreman&rsquo;s smart-proxy</li>
+<li>Integrate smart-proxy with DHCP/TFTP/DNS/Puppet</li>
+</ul>
+<h1 id="install-foreman-from-the-latest-development-branch">Install Foreman from the latest development branch</h1>
+<p>Installing Foreman from RPM has its own advantages, but currently the situation is such that the packaged (Stable) version lags quite far behind the development branch. At the time of writing, the development branch is quite stable and comes with a lot of new features, that the stable release (0.4) is lacking.</p>
+<p>Another advantage of installing directly from the Github repository is that you&rsquo;ll get better understanding of how the system is put together and how it works.</p>
+<h2 id="foreman-dependencies">Foreman dependencies</h2>
+<p>Foreman 0.5 uses Rails 3 and uses <code>bundler</code> to manage the packages, so let&rsquo;s install this Gem:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">gem install bundle
+</code></pre></div><p>We also need to install <code>libvirt</code> packages and their dependencies. If you are using RHEL distribution and it is subscribed to RHN, you can use official RHN <strong>RHEL Virtualisation Server 5</strong> channel to install these packages.</p>
+<p>Alternatively, if you&rsquo;re using CentOS or do not have access to RHN for some reason, you can install CentOS RPMs directly, which works fine on RHEL distribution too:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">wget http://mirror.centos.org/centos-5/5/os/x86_64/CentOS/xen-libs-3.0.3-135.el5.x86_64.rpm
+wget http://mirror.centos.org/centos-5/5/os/x86_64/CentOS/xen-devel-3.0.3-135.el5.x86_64.rpm
+wget http://mirror.centos.org/centos-5/5/os/x86_64/CentOS/libvirt-0.8.2-25.el5.x86_64.rpm
+wget http://mirror.centos.org/centos-5/5/os/x86_64/CentOS/libvirt-devel-0.8.2-25.el5.x86_64.rpm
+yum install *rpm --nogpgcheck
+</code></pre></div><h2 id="getting-the-latest-foreman-code">Getting the latest Foreman code</h2>
+<p>Now with all prerequisites sorted, let&rsquo;s get the latest Foreman build from Github:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">export GIT_SSL_NO_VERIFY<span style="color:#f92672">=</span>true
+export PATH<span style="color:#f92672">=</span>/usr/pgsql-9.1/bin/:$PATH
+cd /opt
+git clone https://github.com/theforeman/foreman.git -b develop
+</code></pre></div><p>The next code snippet shows how to build the Foreman using bundler. You can see that I&rsquo;m excluding some options, such as MySQL and SQLite support, as well as Development and Test components.</p>
+<p>If you are using MySQL instead of PostgreSQL, you will have to modify the <code>--without</code> option to exclude <code>postgresql</code> instead of <code>mysql</code>.</p>
+<p>For testing purposes you might want to leave SQLite, and remove the other two databases.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">cd foreman
+yum install libxml2 libxml2-devel libxslt libxslt-devel
+bundle install --without mysql sqlite test development --path vendor
+cp config/settings.yaml.example config/settings.yaml
+</code></pre></div><p>Now we need to initialise the database by creating all required tables and updating them with initial data. In Rails world this is achieved by running DB migration scripts and then starting up the Foreman service, as per below:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">RAILS_ENV<span style="color:#f92672">=</span>production bundle exec rake db:migrate
+RAILS_ENV<span style="color:#f92672">=</span>production ./script/rails s
+</code></pre></div><p>Now that we have a running Foreman instance, try connecting to it (http://your-foreman-server:8140/) and see if you get a response from a working Rails application. You should see a Foreman dashboard, similar to the below:</p>
+<figure>
+    <img src="images/foreman-dashboard-2012.png"
+         alt="Foreman Dashboard" width="400"/> <figcaption>
+            <h4>Foreman Dashboard</h4>
+        </figcaption>
+</figure>
+
+<h2 id="configure-passenger">Configure Passenger</h2>
+<p>It is OK to use default WEBrick web server for quick tests, but you don&rsquo;t really want to do that in the production environment. So just as we did with Puppet, let&rsquo;s run Foreman from within Passenger.</p>
+<p>The configuration is very similar to Puppet configuration. Assuming that you are using Apache, create <code>/etc/httpd/conf.d/foreman.conf</code> with the following contents:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-apache" data-lang="apache">
+<span style="color:#f92672">&lt;VirtualHost</span> <span style="color:#e6db74">*:80</span><span style="color:#f92672">&gt;</span>
+    DocumentRoot <span style="color:#e6db74">/opt/foreman/public</span>
+    RailsAutodetect <span style="color:#66d9ef">On</span>
+    AddDefaultCharset UTF-8
+<span style="color:#f92672">&lt;/VirtualHost&gt;</span>
+
+<span style="color:#f92672">&lt;VirtualHost</span> <span style="color:#e6db74">*:443</span><span style="color:#f92672">&gt;</span>
+    RailsAutoDetect <span style="color:#66d9ef">On</span>
+    RailsEnv production
+    DocumentRoot <span style="color:#e6db74">/opt/foreman/public</span>
+
+    <span style="color:#75715e"># Use puppet certificates for SSL</span>
+    SSLEngine <span style="color:#66d9ef">On</span>
+    SSLCertificateFile <span style="color:#e6db74">/var/lib/puppet/ssl/certs/__your_servername__.pem</span>
+    SSLCertificateKeyFile <span style="color:#e6db74">/var/lib/puppet/ssl/private_keys/__your_servername__.pem</span>
+    SSLCertificateChainFile <span style="color:#e6db74">/var/lib/puppet/ssl/ca/ca_crt.pem</span>
+    SSLCACertificateFile <span style="color:#e6db74">/var/lib/puppet/ssl/ca/ca_crt.pem</span>
+    SSLVerifyClient optional
+    SSLOptions +StdEnvVars
+    SSLVerifyDepth <span style="color:#ae81ff">3</span>
+<span style="color:#f92672">&lt;/VirtualHost&gt;</span>
+
+</code></pre></div><p><strong>Note!</strong> Make sure you point to the existing certificate and certificate key files. We created those in the previous post, while installing and setting up Puppet server.</p>
+<h2 id="integrate-puppet-and-foreman">Integrate Puppet and Foreman</h2>
+<p>There are couple of steps needed to integrate Puppet and Foreman, so that each could see and use others information.</p>
+<h3 id="sending-puppet-reports-to-foreman">Sending Puppet reports to Foreman</h3>
+<p>Once a Puppet client finishes its run, it will report back to Puppet master with the status. Puppet allows you to define hooks, so that every time when a report comes back, a custom script is fired. We are going to create and register a script that&rsquo;ll put the information into the Foreman&rsquo;s DB.</p>
+<p>The source of this script can be found on <a href="https://raw.github.com/theforeman/puppet-foreman/master/templates/foreman-report.rb.erb">Foreman Github repository</a>, so check for an updated version.</p>
+<p>Add the following code to a file called <code>/usr/lib/ruby/site_ruby/1.8/puppet/reports/foreman.rb</code>. You will have to create this file, as it wouldn&rsquo;t exist:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-ruby" data-lang="ruby">
+$foreman_url<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;http://__foreman_host__&#39;</span>
+
+require <span style="color:#e6db74">&#39;puppet&#39;</span>
+require <span style="color:#e6db74">&#39;net/http&#39;</span>
+require <span style="color:#e6db74">&#39;net/https&#39;</span>
+require <span style="color:#e6db74">&#39;uri&#39;</span>
+
+<span style="color:#66d9ef">Puppet</span><span style="color:#f92672">::</span><span style="color:#66d9ef">Reports</span><span style="color:#f92672">.</span>register_report(<span style="color:#e6db74">:foreman</span>) <span style="color:#66d9ef">do</span>
+    <span style="color:#66d9ef">Puppet</span><span style="color:#f92672">.</span>settings<span style="color:#f92672">.</span>use(<span style="color:#e6db74">:reporting</span>)
+    desc <span style="color:#e6db74">&#34;Sends reports directly to Foreman&#34;</span>
+
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">process</span>
+      <span style="color:#66d9ef">begin</span>
+        uri <span style="color:#f92672">=</span> <span style="color:#66d9ef">URI</span><span style="color:#f92672">.</span>parse($foreman_url)
+        http <span style="color:#f92672">=</span> <span style="color:#66d9ef">Net</span><span style="color:#f92672">::</span><span style="color:#66d9ef">HTTP</span><span style="color:#f92672">.</span>new(uri<span style="color:#f92672">.</span>host, uri<span style="color:#f92672">.</span>port)
+        <span style="color:#66d9ef">if</span> uri<span style="color:#f92672">.</span>scheme <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;https&#39;</span> <span style="color:#66d9ef">then</span>
+          http<span style="color:#f92672">.</span>use_ssl <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+          http<span style="color:#f92672">.</span>verify_mode <span style="color:#f92672">=</span> <span style="color:#66d9ef">OpenSSL</span><span style="color:#f92672">::</span><span style="color:#66d9ef">SSL</span><span style="color:#f92672">::</span><span style="color:#66d9ef">VERIFY_NONE</span>
+        <span style="color:#66d9ef">end</span>
+        req <span style="color:#f92672">=</span> <span style="color:#66d9ef">Net</span><span style="color:#f92672">::</span><span style="color:#66d9ef">HTTP</span><span style="color:#f92672">::</span><span style="color:#66d9ef">Post</span><span style="color:#f92672">.</span>new(<span style="color:#e6db74">&#34;</span><span style="color:#e6db74">#{</span>uri<span style="color:#f92672">.</span>path<span style="color:#e6db74">}</span><span style="color:#e6db74">/reports/create?format=yml&#34;</span>)
+        req<span style="color:#f92672">.</span>set_form_data({<span style="color:#e6db74">&#39;report&#39;</span> <span style="color:#f92672">=&gt;</span> to_yaml})
+        response <span style="color:#f92672">=</span> http<span style="color:#f92672">.</span>request(req)
+      <span style="color:#66d9ef">rescue</span> <span style="color:#66d9ef">Exception</span> <span style="color:#f92672">=&gt;</span> e
+        <span style="color:#66d9ef">raise</span> <span style="color:#66d9ef">Puppet</span><span style="color:#f92672">::</span><span style="color:#66d9ef">Error</span>, <span style="color:#e6db74">&#34;Could not send report to Foreman at </span><span style="color:#e6db74">#{</span>$foreman_url<span style="color:#e6db74">}</span><span style="color:#e6db74">/reports/create?format=yml: </span><span style="color:#e6db74">#{</span>e<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+      <span style="color:#66d9ef">end</span>
+    <span style="color:#66d9ef">end</span>
+<span style="color:#66d9ef">end</span>
+
+</code></pre></div><p>Now tell Puppet to run this script by modifying <code>/etc/puppet/puppet.conf</code>:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-ini" data-lang="ini">
+<span style="color:#66d9ef">[main]</span>
+    <span style="color:#a6e22e">reports</span><span style="color:#f92672">=</span><span style="color:#e6db74">log, foreman</span>
+
+</code></pre></div><h3 id="telling-puppet-to-use-foreman-as-enc">Telling Puppet to use Foreman as ENC</h3>
+<p>ENC means External Node Classifier, and it is a way to provide information about a node to Puppet. The information provided includes Puppet classes that need to be applied to a node, and Puppet configuration parameters.</p>
+<p>One way to manage node configuration is by using <code>nodes.pp</code> Puppet configuration file, but Foreman is already holding all that information in its data structures, so we&rsquo;ll make use of it.</p>
+<p>To do so, we need to create a script that Puppet would call to get the node information. It can be any script as long as it returns valid configuration in YAML format. The script should accept a hostname as parameter.</p>
+<p>Create <code>/etc/puppet/node.rb</code> with this code in it:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-ruby" data-lang="ruby">
+<span style="color:#75715e">#!/usr/bin/env ruby</span>
+<span style="color:#75715e"># a simple script which fetches external nodes from Foreman</span>
+<span style="color:#75715e"># you can basically use anything that knows how to get http data, e.g. wget/curl</span>
+ etc<span style="color:#f92672">.</span>
+
+<span style="color:#75715e"># Foreman url</span>
+foreman_url<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://__foreman_host__&#34;</span> 
+
+require <span style="color:#e6db74">&#39;net/http&#39;</span>
+
+foreman_url <span style="color:#f92672">+=</span> <span style="color:#e6db74">&#34;/node/</span><span style="color:#e6db74">#{</span><span style="color:#66d9ef">ARGV</span><span style="color:#f92672">[</span><span style="color:#ae81ff">0</span><span style="color:#f92672">]</span><span style="color:#e6db74">}</span><span style="color:#e6db74">?format=yml&#34;</span> 
+url <span style="color:#f92672">=</span> <span style="color:#66d9ef">URI</span><span style="color:#f92672">.</span>parse(foreman_url)
+req <span style="color:#f92672">=</span> <span style="color:#66d9ef">Net</span><span style="color:#f92672">::</span><span style="color:#66d9ef">HTTP</span><span style="color:#f92672">::</span><span style="color:#66d9ef">Get</span><span style="color:#f92672">.</span>new(foreman_url)
+res <span style="color:#f92672">=</span> <span style="color:#66d9ef">Net</span><span style="color:#f92672">::</span><span style="color:#66d9ef">HTTP</span><span style="color:#f92672">.</span>start(url<span style="color:#f92672">.</span>host, url<span style="color:#f92672">.</span>port) { <span style="color:#f92672">|</span>http<span style="color:#f92672">|</span>
+  http<span style="color:#f92672">.</span>request(req)
+}
+
+<span style="color:#66d9ef">case</span> res
+<span style="color:#66d9ef">when</span> <span style="color:#66d9ef">Net</span><span style="color:#f92672">::</span><span style="color:#66d9ef">HTTPOK</span>
+  puts res<span style="color:#f92672">.</span>body
+<span style="color:#66d9ef">else</span>
+  $stderr<span style="color:#f92672">.</span>puts <span style="color:#e6db74">&#34;Error retrieving node %s: %s&#34;</span> <span style="color:#f92672">%</span> <span style="color:#f92672">[</span><span style="color:#66d9ef">ARGV</span><span style="color:#f92672">[</span><span style="color:#ae81ff">0</span><span style="color:#f92672">]</span>, res<span style="color:#f92672">.</span>class<span style="color:#f92672">]</span>
+<span style="color:#66d9ef">end</span>
+
+</code></pre></div><p>Next step is to tell Puppet what script it needs to call when it needs to get information about a node. We can do this by adding the following configuration to <code>/etc/puppet/puppet.conf</code>:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-ini" data-lang="ini">
+<span style="color:#66d9ef">[master]</span>
+  <span style="color:#a6e22e">external_nodes</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">/etc/puppet/node.rb
+</span><span style="color:#e6db74">  node_terminus  = exec</span>
+
+</code></pre></div><h1 id="install-foreman-proxy-smart-proxy">Install Foreman Proxy (smart-proxy)</h1>
+<p>So we have a running and configured instance of Foreman, but the system is not ready yet for host provisioning. Most of the operation that Foreman performs, like adding hosts to DHCP, creating PXEboot files and managing DNS, are done using <strong>smart-proxy</strong> components, also referred to as <strong>foreman-proxy</strong>. I&rsquo;ll use these terms interchangeably.</p>
+<p>Installing the latest Foreman-Proxy code is very simple, just follow the steps below:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+cd /opt
+git clone git://github.com/theforeman/smart-proxy.git
+useradd -r foreman-proxy
+usermod -G puppet foreman-proxy
+usermod -G foreman-proxy puppet
+chown -R foreman-proxy smart-proxy
+chown -R foreman-proxy.root /var/log/foreman-proxy
+gem install sinatra -v 1.0
+gem install json
+cp /opt/smart-proxy/config/settings.yml.example /opt/smart-proxy/config/settings.yml
+mkdir /var/run/foreman-proxy/
+su - foreman-proxy
+/opt/smart-proxy/bin/smart-proxy
+
+</code></pre></div><p>You should have a working smart-proxy, albeit without any capabilities. You can test it with your browser by going to <a href="http://__your_host__:8443/features">http://<strong>your_host</strong>:8443/features</a> URL. You should see an empty &lsquo;Supported features&rsquo; list.</p>
+<p>In this example I&rsquo;m starting smart proxy directly running the script. Although it does &lsquo;daemonise&rsquo; itself properly, you might want to create a proper <code>init.d</code> script.</p>
+<h2 id="configure-smart-proxy-to-control-puppet">Configure Smart-Proxy to control Puppet</h2>
+<p>Foreman Proxy needs to be able to run Puppet certificate management commands. While we&rsquo;re at it, we also enable remote Puppet run for the Foreman user.</p>
+<p>Run <code>visudo</code> as <code>root</code> user and add the following configuration:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+Defaults:foreman !requiretty
+Defaults:foreman-proxy !requiretty
+foreman ALL<span style="color:#f92672">=(</span>ALL<span style="color:#f92672">)</span> NOPASSWD:/usr/sbin/puppetrun
+foreman-proxy ALL<span style="color:#f92672">=(</span>ALL<span style="color:#f92672">)</span> NOPASSWD:/usr/sbin/puppetca*
+
+</code></pre></div><p>You also need to tell smart proxy that it is supposed to manage Puppet by making these changes to <code>/opt/smart-proxy/config/settings.yml</code>:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+:puppetca: true
+:puppet: true
+:puppet_conf: /etc/puppet/puppet.conf
+
+</code></pre></div><h2 id="adding-support-for-tftp-and-dhcp-management">Adding support for TFTP and DHCP management</h2>
+<p>Obviously, you can separate TFTP and DHCP services, but they typically are not resource hungry and because they are both involved in PXE boot process it makes sense to run these two services on the same host. So I will deal with their configuration in one section.</p>
+<h3 id="tftp-configuration">TFTP configuration</h3>
+<p>Install TFTP server and SysLinux package, which will provide PXELinux boot image:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+yum install -y tftp-server syslinux
+cp /usr/lib/syslinux/pxelinux.0 /tftpboot
+
+</code></pre></div><p>Make sure you enable TFTP server in <code>xinetd</code> configuration by modifying <code>/etc/xinetd.d/tftp</code> and restarting <code>xinetd</code> service:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+server_args             <span style="color:#f92672">=</span> -s /tftpboot
+disable                 <span style="color:#f92672">=</span> no
+
+</code></pre></div><p>Finally, tell Foreman Proxy that it is now in charge for TFTP management by changing <code>/opt/smart-proxy/config/settings.yml</code>:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+:tftp: true
+:tftproot: /tftpboot
+
+</code></pre></div><h3 id="add-dhcp-support">Add DHCP support</h3>
+<p>The steps needed to get DHCP working and controlled by the smart-proxy are:</p>
+<ul>
+<li>Generate shared key for DHCP management via OMAPI protocol</li>
+<li>Create DHCP configuration that allows remote subnet management</li>
+<li>Enable DHCP support in smart-proxy configuration and provide the key details</li>
+</ul>
+<p>Let&rsquo;s install some required packages, including a Ruby Gem:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+yum install -y libffi libffi-devel bind
+gem install net-ping
+
+</code></pre></div><p>Generate a key (this will create a couple of files, you can delete them):</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+dnssec-keygen -r /dev/urandom -a HMAC-MD5 -b <span style="color:#ae81ff">512</span> -n HOST omapi_key
+cat Komapi_key.+*.private |grep ^Key|cut -d <span style="color:#e6db74">&#39; &#39;</span> -f2-
+<span style="color:#f92672">[</span>..key..<span style="color:#f92672">]</span>
+
+</code></pre></div><p>Create a DHCP configuration filei <code>/etc/dhcpd.conf</code>. Make sure you put the details representing your network configuration, ie subnet, netmask, router IPs, etc:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+omapi-port 7911;
+key omapi_key <span style="color:#f92672">{</span>
+  algorithm HMAC-MD5;
+  secret <span style="color:#e6db74">&#34;[..key..]&#34;</span>;
+<span style="color:#f92672">}</span>;
+omapi-key omapi_key;
+
+allow booting;
+allow bootp;
+
+subnet 192.168.0.0 netmask 255.255.255.0 <span style="color:#f92672">{</span>
+    range 192.168.0.100 192.168.0.200;
+    option domain-name-servers 192.168.0.1;
+    option domain-name <span style="color:#e6db74">&#34;my.domain&#34;</span>;
+    option routers 192.168.0.254;
+    filename <span style="color:#e6db74">&#34;/pxelinux.0&#34;</span>;
+    next-server 192.168.0.10;
+<span style="color:#f92672">}</span>
+
+</code></pre></div><p>And finally, tell smart-proxy that it now manages DHCP daemon (in <code>/opt/smart-proxy/config/settings.yml</code>):</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+:dhcp: true
+:dhcp_vendor: isc
+:dhcp_config: /etc/dhcpd.conf
+:dhcp_leases: /var/lib/dhcpd/dhcpd.leases
+:dhcp_key_name: omapi_key
+:dhcp_key_secret: <span style="color:#f92672">[</span>..key..<span style="color:#f92672">]</span>
+
+</code></pre></div><p>Restart the foreman-proxy process, and you should see DHCP enabled if you go to <a href="http://__your_host__:8443/features">http://<strong>your_host</strong>:8443/features</a>.</p>
+<h3 id="add-dns-support-bind">Add DNS support (Bind)</h3>
+<p>Now, when you add a new host, Foreman will contact the smart-proxy and do two things: firstly it will get the next available IP, which will be suggested for you. Secondly, when you click on <strong>save</strong> button, it will instruct smart-proxy to add the IP to DHCP leases file.</p>
+<p>Let&rsquo;s go even further, and use smart-proxy to create an entry in DNS zone file.</p>
+<p>The process is very similar to DHCP configuration:</p>
+<ul>
+<li>Generate a secret key which is shared between smart-proxy and DNS server</li>
+<li>Instruct DNS server to allow remote management</li>
+<li>Configure smart-proxy by telling it that it is now responsible for DNS management</li>
+</ul>
+<p>Install Bind and configure it (you will have to refer to Bind configuration guide for the exact details):</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+yum install -y bind bind-utils bind-chroot bind-libs
+
+</code></pre></div><p>Create shared keys. Unlike with DHCP, you will have to keep the generated files in the directories they were created. I&rsquo;m also showing what the result files may look like:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+cd /var/named/chroot/etc
+dnssec-keygen -a HMAC-MD5 -b <span style="color:#ae81ff">128</span> -n HOST foreman
+
+cat Kforeman.+157+51238.key
+foreman. IN KEY <span style="color:#ae81ff">512</span> <span style="color:#ae81ff">3</span> <span style="color:#ae81ff">157</span> <span style="color:#f92672">[</span>..key..<span style="color:#f92672">]</span>
+cat Kforeman.+157+51238.private
+Private-key-format: v1.2
+Algorithm: <span style="color:#ae81ff">157</span> <span style="color:#f92672">(</span>HMAC_MD5<span style="color:#f92672">)</span>
+Key: <span style="color:#f92672">[</span>..key..<span style="color:#f92672">]</span>
+
+</code></pre></div><p>Create a new DNS key file (called <code>/var/named/chroot/etc/foreman.key</code>), which will be included in the main configuration:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+key <span style="color:#e6db74">&#34;foreman&#34;</span> <span style="color:#f92672">{</span>
+        algorithm hmac-md5;
+        secret <span style="color:#e6db74">&#34;[..key..]&#34;</span>;
+<span style="color:#f92672">}</span>;
+
+</code></pre></div><p>Make it readable by the foreman user:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+chmod o+r /var/named/chroot/etc/foreman.key
+
+</code></pre></div><p>Modify DNS zone configuration (<code>/var/named/chroot/etc/named.conf</code>), so that remote management is allowed:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+include <span style="color:#e6db74">&#34;/etc/foreman.key&#34;</span>;
+zone <span style="color:#e6db74">&#34;0.168.192.in-addr.arpa.&#34;</span> IN <span style="color:#f92672">{</span>
+        type master;
+        file <span style="color:#e6db74">&#34;192.168.0.db&#34;</span>;
+        allow-update <span style="color:#f92672">{</span> key <span style="color:#e6db74">&#34;foreman&#34;</span>; <span style="color:#f92672">}</span>;
+<span style="color:#f92672">}</span>;
+
+zone <span style="color:#e6db74">&#34;my.domain.&#34;</span> IN <span style="color:#f92672">{</span>
+        type master;
+        file <span style="color:#e6db74">&#34;my.domain.db&#34;</span>;
+        allow-update <span style="color:#f92672">{</span> key foreman; <span style="color:#f92672">}</span>;
+<span style="color:#f92672">}</span>;
+
+</code></pre></div><p>And tell Foreman-proxy to manage DNS by modifying <code>/opt/smart-proxy/config/settings.yml</code>:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+:dns: true
+:dns_key: /var/named/chroot/etc/Kforeman.+157+51238.private
+
+</code></pre></div><p>Restart the foreman-proxy process and test if you can create a new node.</p>
+<h1 id="troubleshooting">Troubleshooting</h1>
+<p>As you can see, the installation process although pretty straight forward, but has a lot of steps. So there are a lot of points where things could go wrong. But fear not, it&rsquo;s not that difficult and scary as it may seem at first.</p>
+<p>Some of the things to look at if things do not work the first time:</p>
+<ul>
+<li>Gem file permissions. Some systems have very restrictive umask settings, and all gems installed by <code>root</code> user will not be available to other users (<code>foreman</code>, <code>puppet</code>, <code>foreman-proxy</code>). Check files in <code>/usr/lib/ruby/site_ruby/1.8/</code>.</li>
+<li>Other file permissions. Check that other users that are involved in the process can read (and write where appropriate) all required files, in particular: <code>/tftpboot/*</code>, <code>/var/named/chroot/etc/*</code>, <code>/etc/dhcpd.conf</code>, and <code>/var/lib/dhcpd/dhcpd.leases</code>.</li>
+<li>When you make any changes, don&rsquo;t forget to restart all processes that are involved: <code>httpd</code>, smart-proxy, <code>dhcpd</code>, <code>named</code>.</li>
+</ul>
+<p>If still stuck, hop on to <code>#theforeman</code> IRC channel on freenode.net, the bunch there is really friendly and helpful (I know, I&rsquo;ve been asking a lot of stupid questions, and they still tolerate me :) )</p>
+<h1 id="further-reading">Further reading</h1>
+<p>Visit these websites for more information:</p>
+<ul>
+<li><a href="http://theforeman.org/">Foreman project website</a></li>
+<li><a href="http://cloudprovisioning.wordpress.com/">Cloud Provisioning blog</a></li>
+<li><a href="http://docs.puppetlabs.com/">Puppet documentation</a></li>
+</ul>
+
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>

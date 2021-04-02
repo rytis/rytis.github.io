@@ -44,5 +44,37 @@ What I was trying to achieve is multi-NIC with bonding configuration in Foreman/
 One way is to leave this configuration entirelly to Puppet. Another way is to configure the interfaces at the kicstart phase, which is a safer option.</description>
     </item>
     
+    <item>
+      <title>Setting Up Foreman on RHEL 5.7 Part 2</title>
+      <link>https://pages.pulegium.eu/journal/setting-up-foreman-on-rhel-5-7-part-2/</link>
+      <pubDate>Thu, 05 Apr 2012 18:31:57 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/setting-up-foreman-on-rhel-5-7-part-2/</guid>
+      <description>In Part 1 we installed and configured Puppet. We have also set up puppet to write host configuration data to a PostgreSQL database using storedconfig.
+Today, I&amp;rsquo;m going to show you how to install and configure:
+ Foreman Foreman&amp;rsquo;s smart-proxy Integrate smart-proxy with DHCP/TFTP/DNS/Puppet  Install Foreman from the latest development branch Installing Foreman from RPM has its own advantages, but currently the situation is such that the packaged (Stable) version lags quite far behind the development branch.</description>
+    </item>
+    
+    <item>
+      <title>Use Foreman Host Parameters From Fabric</title>
+      <link>https://pages.pulegium.eu/journal/use-foreman-host-parameters-from-fabric/</link>
+      <pubDate>Sat, 24 Mar 2012 19:06:51 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/use-foreman-host-parameters-from-fabric/</guid>
+      <description>Fabric is great for managing remote systems. You can script whatever you want to do on a remote system, and run the tasks at any time, on any set of systems. This is an excellent automation tool, as it does not require any agent processes running on the remote systems - it uses SSH for its communication with the remote hosts.
+If you are using Foreman to manage your systems, you already maintain a list of servers.</description>
+    </item>
+    
+    <item>
+      <title>Setting Up Foreman on RHEL 5.7 Part 1</title>
+      <link>https://pages.pulegium.eu/journal/setting-up-foreman-on-rhel-5-7-part-1/</link>
+      <pubDate>Wed, 21 Mar 2012 18:32:00 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/setting-up-foreman-on-rhel-5-7-part-1/</guid>
+      <description>In this set of articles we are going to go through the steps required to get a fully functional setup of Puppet 2.7.12 and Foreman 0.5 (git development branch) on a system running RedHat Enterprise Linux (or CentOS) version 5.7.
+Before we dive in, let&amp;rsquo;s discuss why such and old version of OS is used in this example.
+Why use CentOS/RHEL version 5.7 ? RHEL5 is an old product. Released on 2007-03-15 it will be going through the following life cycle dates:</description>
+    </item>
+    
   </channel>
 </rss>

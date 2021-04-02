@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/"><strong>Home</strong></a>
+  
+  <a href="/journal/"><strong>Journal</strong></a>
+  
+  <a href="/publications/"><strong>Publications</strong></a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>Use Foreman Host Parameters From Fabric</h2>
+  <p><a href="http://www.fabfile.org">Fabric</a> is great for managing remote systems. You can script whatever you want to do on a remote system, and run the tasks at any time, on any set of systems. This is an excellent automation tool, as it does not require any agent processes running on the remote systems - it uses SSH for its communication with the remote hosts.</p>
+<p>If you are using <a href="http://www.theforeman.org">Foreman</a> to manage your systems, you already maintain a list of servers. What&rsquo;s even better - Foreman allows you to assign custom parameters to the hosts, using host parameter settings. These parameters can be used by Puppet, if you&rsquo;re using Foreman as External Node Classifier.</p>
+<p>Perhaps you&rsquo;ve already guessed where I&rsquo;m going with this&hellip; Wouldn&rsquo;t it be nice if you could tell Fabric to fetch a list of nodes based on some parameter stored in Foreman? Of course it would!</p>
+<p>For example, if you&rsquo;re managing a Hadoop cluster, you might define a host parameter called <code>hadoop_node_role</code>, which defines what each node does. Hadoop cluster typically is made up of a pair of master nodes and a large number of slave nodes.</p>
+<p>So let&rsquo;s assume that for each node in your Hadoop cluster you set <code>hadoop_node_role</code> to either <code>slave</code> or <code>master</code>.</p>
+<p>Let&rsquo;s create a <code>fabfile.py</code> that will query Foreman to get a list of all nodes, and then filter out only those that meet a specified selector rule:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#f92672">from</span> fabric.api <span style="color:#f92672">import</span> run, env
+<span style="color:#f92672">import</span> requests
+<span style="color:#f92672">import</span> json
+<span style="color:#f92672">import</span> yaml
+
+<span style="color:#75715e"># couple of node management tasks</span>
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">puppet</span>(command<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;status&#39;</span>):
+    <span style="color:#e6db74">&#34;&#34;&#34;Manage puppet service.
+</span><span style="color:#e6db74">
+</span><span style="color:#e6db74">    Available parameters: `command&#39;, default: `status&#39;
+</span><span style="color:#e6db74">
+</span><span style="color:#e6db74">    Example: fab &lt;nodelist&gt; puppet
+</span><span style="color:#e6db74">             fab &lt;nodelist&gt; puppet:restart&#34;&#34;&#34;</span>
+
+    run(<span style="color:#e6db74">&#34;service puppet </span><span style="color:#e6db74">%s</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">%</span> command)
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hadoop</span>(command<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;status&#39;</span>):
+    <span style="color:#e6db74">&#34;&#34;&#34;Manage Hadoop services.
+</span><span style="color:#e6db74">
+</span><span style="color:#e6db74">    Available parameters: `command&#39;, default: `status&#39;
+</span><span style="color:#e6db74">
+</span><span style="color:#e6db74">    Example: fab &lt;nodelist&gt; hadoop
+</span><span style="color:#e6db74">             fab &lt;nodelist&gt; hadoop:restart&#34;&#34;&#34;</span>
+
+    <span style="color:#66d9ef">if</span> env<span style="color:#f92672">.</span>host <span style="color:#f92672">in</span> master_list:
+        services <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;hadoop-0.20-namenode&#39;</span>, <span style="color:#e6db74">&#39;hadoop-0.20-jobtracker&#39;</span>]
+    <span style="color:#66d9ef">if</span> env<span style="color:#f92672">.</span>host <span style="color:#f92672">in</span> slave_list:
+        services <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;hadoop-0.20-datanode&#39;</span>, <span style="color:#e6db74">&#39;hadoop-0.20-tasktracker&#39;</span>]
+    <span style="color:#66d9ef">if</span> command <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;stop&#39;</span>:
+        services<span style="color:#f92672">.</span>reverse()
+
+    <span style="color:#66d9ef">for</span> srv <span style="color:#f92672">in</span> services:
+        run(<span style="color:#e6db74">&#34;service </span><span style="color:#e6db74">%s</span><span style="color:#e6db74"> </span><span style="color:#e6db74">%s</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">%</span> (srv, command))
+
+
+<span style="color:#75715e"># retrieve and filter a list of nodes from Foreman</span>
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">_get_host_list</span>(param_name, param_value):
+    host_list <span style="color:#f92672">=</span> []
+    headers <span style="color:#f92672">=</span> { <span style="color:#e6db74">&#39;Accept&#39;</span>: <span style="color:#e6db74">&#39;application/json&#39;</span> }
+    r <span style="color:#f92672">=</span> requests<span style="color:#f92672">.</span>get(<span style="color:#e6db74">&#39;http://localhost/hosts&#39;</span>, headers <span style="color:#f92672">=</span> headers)
+    hosts <span style="color:#f92672">=</span> json<span style="color:#f92672">.</span>loads(r<span style="color:#f92672">.</span>text)
+    <span style="color:#66d9ef">for</span> host <span style="color:#f92672">in</span> hosts:
+        r <span style="color:#f92672">=</span> requests<span style="color:#f92672">.</span>get(<span style="color:#e6db74">&#34;http://localhost/hosts/</span><span style="color:#e6db74">%(host)s</span><span style="color:#e6db74">?format=yaml&#34;</span> <span style="color:#f92672">%</span> {<span style="color:#e6db74">&#39;host&#39;</span>: host}, headers <span style="color:#f92672">=</span> headers)
+        host_data <span style="color:#f92672">=</span> yaml<span style="color:#f92672">.</span>load(r<span style="color:#f92672">.</span>text)
+        <span style="color:#66d9ef">if</span> host_data[<span style="color:#e6db74">&#39;parameters&#39;</span>]<span style="color:#f92672">.</span>get(param_name, <span style="color:#e6db74">&#39;&#39;</span>) <span style="color:#f92672">==</span> param_value:
+            host_list<span style="color:#f92672">.</span>append(host)
+    <span style="color:#66d9ef">return</span> host_list
+
+<span style="color:#66d9ef">if</span> __name__ <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#39;__main__&#39;</span>:
+    <span style="color:#66d9ef">if</span> <span style="color:#e6db74">&#39;selector&#39;</span> <span style="color:#f92672">in</span> env:
+        key, val <span style="color:#f92672">=</span> env<span style="color:#f92672">.</span>selector<span style="color:#f92672">.</span>split(<span style="color:#e6db74">&#39;:&#39;</span>)
+        env<span style="color:#f92672">.</span>hosts <span style="color:#f92672">+=</span> _get_host_list(key, val)
+
+</code></pre></div><p>Now you can specify any host parameter name / value pair, and run any Fabric command on the resulting list of nodes:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+fab --set selector<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;hadoop_node_role:slave&#39;</span> puppet
+<span style="color:#f92672">[</span>hadoop-slave-1.domain<span style="color:#f92672">]</span> Executing task <span style="color:#e6db74">&#39;puppet&#39;</span>
+<span style="color:#f92672">[</span>hadoop-slave-1.domain<span style="color:#f92672">]</span> run: service puppet status
+<span style="color:#f92672">[</span>hadoop-slave-1.domain<span style="color:#f92672">]</span> out: puppetd <span style="color:#f92672">(</span>pid  14160<span style="color:#f92672">)</span> is running...
+
+<span style="color:#f92672">[</span>hadoop-slave-2.domain<span style="color:#f92672">]</span> Executing task <span style="color:#e6db74">&#39;puppet&#39;</span>
+<span style="color:#f92672">[</span>hadoop-slave-2.domain<span style="color:#f92672">]</span> run: service puppet status
+<span style="color:#f92672">[</span>hadoop-slave-2.domain<span style="color:#f92672">]</span> out: puppetd <span style="color:#f92672">(</span>pid  30375<span style="color:#f92672">)</span> is running...
+
+<span style="color:#f92672">[</span>hadoop-slave-3.domain<span style="color:#f92672">]</span> Executing task <span style="color:#e6db74">&#39;puppet&#39;</span>
+<span style="color:#f92672">[</span>hadoop-slave-3.domain<span style="color:#f92672">]</span> run: service puppet status
+<span style="color:#f92672">[</span>hadoop-slave-3.domain<span style="color:#f92672">]</span> out: puppetd <span style="color:#f92672">(</span>pid  22611<span style="color:#f92672">)</span> is running...
+
+<span style="color:#f92672">[</span>hadoop-slave-4.domain<span style="color:#f92672">]</span> Executing task <span style="color:#e6db74">&#39;puppet&#39;</span>
+<span style="color:#f92672">[</span>hadoop-slave-4.domain<span style="color:#f92672">]</span> run: service puppet status
+<span style="color:#f92672">[</span>hadoop-slave-4.domain<span style="color:#f92672">]</span> out: puppetd <span style="color:#f92672">(</span>pid  23080<span style="color:#f92672">)</span> is running...
+
+
+Done.
+Disconnecting from hadoop-slave-1.domain... <span style="color:#66d9ef">done</span>.
+Disconnecting from hadoop-slave-2.domain... <span style="color:#66d9ef">done</span>.
+Disconnecting from hadoop-slave-3.domain... <span style="color:#66d9ef">done</span>.
+Disconnecting from hadoop-slave-4.domain... <span style="color:#66d9ef">done</span>.
+
+</code></pre></div><p>The trick here is that we create a new Fabric environment setting (called <code>selector</code>) from a command line. The value of this parameter is set to host parameter name/value separated by colon <code>:</code> character. In the fabfile we first check if user has specified the additional parameter, <code>selector</code>, and if it is specified, we use its value to filter out nodes from the list that Foreman API returns to us.</p>
+
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>
