@@ -25,190 +25,188 @@
 <p>One way is to leave this configuration entirelly to Puppet. Another way is to configure the interfaces at the kicstart phase, which is a safer option.</p>
 <p>So the snippets are below, verbatim, I will update the post if/when I change them.</p>
 <p>Foreman kicstart bit (post install section):</p>
-<pre><code>..
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">..
 ..
-SYSTEM_INFO=$(dmidecode -s system-manufacturer)
-if [[ &quot;$SYSTEM_INFO&quot; == &quot;HP&quot; ]]; then
-  # remove ifcfg Files and udev rules if exist
+SYSTEM_INFO<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dmidecode -s system-manufacturer<span style="color:#66d9ef">)</span>
+<span style="color:#66d9ef">if</span> <span style="color:#f92672">[[</span> <span style="color:#e6db74">&#34;</span>$SYSTEM_INFO<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;HP&#34;</span> <span style="color:#f92672">]]</span>; <span style="color:#66d9ef">then</span>
+  <span style="color:#75715e"># remove ifcfg Files and udev rules if exist</span>
   rm -f /etc/sysconfig/network-scripts/ifcfg-eth*
   rm -f /etc/udev/rules.d/70-persistent-net.rules
   
   wget -P /etc/yum.repos.d -nc -nd -q http://yum.repo.somewhere/repofiles/3rdParty-hp-spp.repo
-  yum install -y -e 0 hpsmh hp-smh-templates hp-health hp-snmp-agents hpdiags hponcfg hpacucli cpqacuxe glibc.i686
+  yum install -y -e <span style="color:#ae81ff">0</span> hpsmh hp-smh-templates hp-health hp-snmp-agents hpdiags hponcfg hpacucli cpqacuxe glibc.i686
   
   modprobe hpilo
   
-  # Generate ILO 
-  cat &gt; /tmp/ilo-parser.py &lt;&lt; EOF
-&lt;%= snippet(&quot;ILO-IFace-Parser&quot;) %&gt;
-EOF
+  <span style="color:#75715e"># Generate ILO</span> 
+  cat &gt; /tmp/ilo-parser.py <span style="color:#e6db74">&lt;&lt; EOF
+</span><span style="color:#e6db74">&lt;%= snippet(&#34;ILO-IFace-Parser&#34;) %&gt;
+</span><span style="color:#e6db74">EOF</span>
   
-  &lt;%= @osver &lt;= 5 ? &quot;python26&quot; : &quot;python&quot; -%&gt; /tmp/ilo-parser.py
+  &lt;%<span style="color:#f92672">=</span> @osver &lt;<span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span> ? <span style="color:#e6db74">&#34;python26&#34;</span> : <span style="color:#e6db74">&#34;python&#34;</span> -%&gt; /tmp/ilo-parser.py
   
-  # CLEAR the IML Log
-  hpasmcli -s &quot;clear iml&quot;
+  <span style="color:#75715e"># CLEAR the IML Log</span>
+  hpasmcli -s <span style="color:#e6db74">&#34;clear iml&#34;</span>
   
-elif [[ &quot;$SYSTEM_INFO&quot; =~ &quot;VMware&quot; ]]; then
+<span style="color:#66d9ef">elif</span> <span style="color:#f92672">[[</span> <span style="color:#e6db74">&#34;</span>$SYSTEM_INFO<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">=</span>~ <span style="color:#e6db74">&#34;VMware&#34;</span> <span style="color:#f92672">]]</span>; <span style="color:#66d9ef">then</span>
 ..
 ..
-</code></pre>
-<p>Snippet that handles bonding configuration (&ldquo;ILO-IFacw-Parser&rdquo;):</p>
-<pre><code>#!/usr/bin/env python
+</code></pre></div><p>Snippet that handles bonding configuration (&ldquo;ILO-IFacw-Parser&rdquo;):</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e">#!/usr/bin/env python</span>
 
-# WARNING: Doesn't work with python3
+<span style="color:#75715e"># WARNING: Doesn&#39;t work with python3</span>
 
-from xml.etree.ElementTree import parse
-import sys
-import re
-import subprocess
-import glob
+<span style="color:#f92672">from</span> xml.etree.ElementTree <span style="color:#f92672">import</span> parse
+<span style="color:#f92672">import</span> sys
+<span style="color:#f92672">import</span> re
+<span style="color:#f92672">import</span> subprocess
+<span style="color:#f92672">import</span> glob
 
-def parse_ilo_interfaces(filename):
-#===============================================================================
-# Interfaces XML Snipped
-# ...
-# &lt;SMBIOS_RECORD B64_DATA=&quot;0RQA0QADACJkmKx6AAUAImSYrHgAAA==&quot; TYPE=&quot;209&quot;&gt;
-#  &lt;FIELD NAME=&quot;Subject&quot; VALUE=&quot;Embedded NIC MAC Assignment&quot; /&gt;
-#  &lt;FIELD NAME=&quot;Port&quot; VALUE=&quot;1&quot; /&gt;
-#  &lt;FIELD NAME=&quot;MAC&quot; VALUE=&quot;00-22-64-98-AC-7A&quot; /&gt;
-#  &lt;FIELD NAME=&quot;Port&quot; VALUE=&quot;2&quot; /&gt;
-#  &lt;FIELD NAME=&quot;MAC&quot; VALUE=&quot;00-22-64-98-AC-78&quot; /&gt;
-#  &lt;FIELD NAME=&quot;Port&quot; VALUE=&quot;iLO&quot; /&gt;
-#  &lt;FIELD NAME=&quot;MAC&quot; VALUE=&quot;00-22-64-97-87-8A&quot; /&gt;
-# &lt;/SMBIOS_RECORD&gt;
-# ...
-#===============================================================================
-    ifaces = {}
-    port = &quot;&quot;
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">parse_ilo_interfaces</span>(filename):
+<span style="color:#75715e">#===============================================================================</span>
+<span style="color:#75715e"># Interfaces XML Snipped</span>
+<span style="color:#75715e"># ...</span>
+<span style="color:#75715e"># &lt;SMBIOS_RECORD B64_DATA=&#34;0RQA0QADACJkmKx6AAUAImSYrHgAAA==&#34; TYPE=&#34;209&#34;&gt;</span>
+<span style="color:#75715e">#  &lt;FIELD NAME=&#34;Subject&#34; VALUE=&#34;Embedded NIC MAC Assignment&#34; /&gt;</span>
+<span style="color:#75715e">#  &lt;FIELD NAME=&#34;Port&#34; VALUE=&#34;1&#34; /&gt;</span>
+<span style="color:#75715e">#  &lt;FIELD NAME=&#34;MAC&#34; VALUE=&#34;00-22-64-98-AC-7A&#34; /&gt;</span>
+<span style="color:#75715e">#  &lt;FIELD NAME=&#34;Port&#34; VALUE=&#34;2&#34; /&gt;</span>
+<span style="color:#75715e">#  &lt;FIELD NAME=&#34;MAC&#34; VALUE=&#34;00-22-64-98-AC-78&#34; /&gt;</span>
+<span style="color:#75715e">#  &lt;FIELD NAME=&#34;Port&#34; VALUE=&#34;iLO&#34; /&gt;</span>
+<span style="color:#75715e">#  &lt;FIELD NAME=&#34;MAC&#34; VALUE=&#34;00-22-64-97-87-8A&#34; /&gt;</span>
+<span style="color:#75715e"># &lt;/SMBIOS_RECORD&gt;</span>
+<span style="color:#75715e"># ...</span>
+<span style="color:#75715e">#===============================================================================</span>
+    ifaces <span style="color:#f92672">=</span> {}
+    port <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;&#34;</span>
     
-    tree = parse(filename)
-    for arecord in tree.findall(&quot;SMBIOS_RECORD&quot;):
-        if arecord.attrib[&quot;TYPE&quot;] == &quot;209&quot;:
-            childs = arecord.getchildren()
+    tree <span style="color:#f92672">=</span> parse(filename)
+    <span style="color:#66d9ef">for</span> arecord <span style="color:#f92672">in</span> tree<span style="color:#f92672">.</span>findall(<span style="color:#e6db74">&#34;SMBIOS_RECORD&#34;</span>):
+        <span style="color:#66d9ef">if</span> arecord<span style="color:#f92672">.</span>attrib[<span style="color:#e6db74">&#34;TYPE&#34;</span>] <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;209&#34;</span>:
+            childs <span style="color:#f92672">=</span> arecord<span style="color:#f92672">.</span>getchildren()
     
     
-    for ch in childs:
-        if ch.attrib[&quot;NAME&quot;] == &quot;Port&quot;:
-            port = ch.attrib[&quot;VALUE&quot;]
-        if ch.attrib[&quot;NAME&quot;] == &quot;MAC&quot;:
-            ifaces[port] = ch.attrib[&quot;VALUE&quot;]
+    <span style="color:#66d9ef">for</span> ch <span style="color:#f92672">in</span> childs:
+        <span style="color:#66d9ef">if</span> ch<span style="color:#f92672">.</span>attrib[<span style="color:#e6db74">&#34;NAME&#34;</span>] <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;Port&#34;</span>:
+            port <span style="color:#f92672">=</span> ch<span style="color:#f92672">.</span>attrib[<span style="color:#e6db74">&#34;VALUE&#34;</span>]
+        <span style="color:#66d9ef">if</span> ch<span style="color:#f92672">.</span>attrib[<span style="color:#e6db74">&#34;NAME&#34;</span>] <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;MAC&#34;</span>:
+            ifaces[port] <span style="color:#f92672">=</span> ch<span style="color:#f92672">.</span>attrib[<span style="color:#e6db74">&#34;VALUE&#34;</span>]
     
-    # remove iLo entry from the dict
-    del ifaces[&quot;iLO&quot;]
+    <span style="color:#75715e"># remove iLo entry from the dict</span>
+    <span style="color:#66d9ef">del</span> ifaces[<span style="color:#e6db74">&#34;iLO&#34;</span>]
     
-    #print(ifaces)
+    <span style="color:#75715e">#print(ifaces)</span>
     
-    # fix index number and mac formatting
-    macp = re.compile('-')
-    for id, mac in ifaces.items():
-        ifaces[int(id) - 1] = macp.sub(':', mac).upper()
-        del ifaces[id]
+    <span style="color:#75715e"># fix index number and mac formatting</span>
+    macp <span style="color:#f92672">=</span> re<span style="color:#f92672">.</span>compile(<span style="color:#e6db74">&#39;-&#39;</span>)
+    <span style="color:#66d9ef">for</span> id, mac <span style="color:#f92672">in</span> ifaces<span style="color:#f92672">.</span>items():
+        ifaces[int(id) <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>] <span style="color:#f92672">=</span> macp<span style="color:#f92672">.</span>sub(<span style="color:#e6db74">&#39;:&#39;</span>, mac)<span style="color:#f92672">.</span>upper()
+        <span style="color:#66d9ef">del</span> ifaces[id]
         
-    #print(ifaces)
-    #print
+    <span style="color:#75715e">#print(ifaces)</span>
+    <span style="color:#75715e">#print</span>
     
-    return ifaces
+    <span style="color:#66d9ef">return</span> ifaces
 
-def gen_config_params(type, ifacenr=&quot;0&quot;, ifacemac=&quot;&quot;, ip=&quot;&quot;, nm=&quot;&quot;, gw=&quot;&quot;):
-    # TODO REFACTOR
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_config_params</span>(type, ifacenr<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;0&#34;</span>, ifacemac<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>, ip<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>, nm<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>, gw<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>):
+    <span style="color:#75715e"># TODO REFACTOR</span>
     
-    if type == &quot;eth&quot;:
-        cfg_settings = {
-                    &quot;DEVICE&quot;: type + ifacenr,
-                    &quot;HWADDR&quot;: ifacemac,
-                    &quot;ONBOOT&quot;: &quot;yes&quot;,
-                    &quot;BOOTPROTO&quot;: &quot;none&quot;,
-                    &quot;USERCTL&quot;: &quot;no&quot;,
-                    &quot;NM_CONTROLLED&quot;: &quot;no&quot;,
-                    &quot;SLAVE&quot;: &quot;yes&quot;,
-                    &quot;MASTER&quot;: &quot;bond0&quot;
+    <span style="color:#66d9ef">if</span> type <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;eth&#34;</span>:
+        cfg_settings <span style="color:#f92672">=</span> {
+                    <span style="color:#e6db74">&#34;DEVICE&#34;</span>: type <span style="color:#f92672">+</span> ifacenr,
+                    <span style="color:#e6db74">&#34;HWADDR&#34;</span>: ifacemac,
+                    <span style="color:#e6db74">&#34;ONBOOT&#34;</span>: <span style="color:#e6db74">&#34;yes&#34;</span>,
+                    <span style="color:#e6db74">&#34;BOOTPROTO&#34;</span>: <span style="color:#e6db74">&#34;none&#34;</span>,
+                    <span style="color:#e6db74">&#34;USERCTL&#34;</span>: <span style="color:#e6db74">&#34;no&#34;</span>,
+                    <span style="color:#e6db74">&#34;NM_CONTROLLED&#34;</span>: <span style="color:#e6db74">&#34;no&#34;</span>,
+                    <span style="color:#e6db74">&#34;SLAVE&#34;</span>: <span style="color:#e6db74">&#34;yes&#34;</span>,
+                    <span style="color:#e6db74">&#34;MASTER&#34;</span>: <span style="color:#e6db74">&#34;bond0&#34;</span>
         }
-    elif type == &quot;bond&quot;:
-        cfg_settings = {
-                    &quot;DEVICE&quot;: type + ifacenr,
-                    &quot;ONBOOT&quot;: &quot;yes&quot;,
-                    &quot;BOOTPROTO&quot;: &quot;none&quot;,
-                    &quot;USERCTL&quot;: &quot;no&quot;,
-                    &quot;NM_CONTROLLED&quot;: &quot;no&quot;,
-                    &quot;BONDING_OPTS&quot;: &quot;miimon=100 mode=1&quot;,
-                    &quot;IPADDR&quot;: ip,
-                    &quot;NETMASK&quot;: nm,
-                    &quot;GATEWAY&quot;: gw
+    <span style="color:#66d9ef">elif</span> type <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;bond&#34;</span>:
+        cfg_settings <span style="color:#f92672">=</span> {
+                    <span style="color:#e6db74">&#34;DEVICE&#34;</span>: type <span style="color:#f92672">+</span> ifacenr,
+                    <span style="color:#e6db74">&#34;ONBOOT&#34;</span>: <span style="color:#e6db74">&#34;yes&#34;</span>,
+                    <span style="color:#e6db74">&#34;BOOTPROTO&#34;</span>: <span style="color:#e6db74">&#34;none&#34;</span>,
+                    <span style="color:#e6db74">&#34;USERCTL&#34;</span>: <span style="color:#e6db74">&#34;no&#34;</span>,
+                    <span style="color:#e6db74">&#34;NM_CONTROLLED&#34;</span>: <span style="color:#e6db74">&#34;no&#34;</span>,
+                    <span style="color:#e6db74">&#34;BONDING_OPTS&#34;</span>: <span style="color:#e6db74">&#34;miimon=100 mode=1&#34;</span>,
+                    <span style="color:#e6db74">&#34;IPADDR&#34;</span>: ip,
+                    <span style="color:#e6db74">&#34;NETMASK&#34;</span>: nm,
+                    <span style="color:#e6db74">&#34;GATEWAY&#34;</span>: gw
         }
-    return cfg_settings
+    <span style="color:#66d9ef">return</span> cfg_settings
 
-def write_cfgfile(path, ifacelist):
-    # Write the file new
-    for ifaces in ifacelist:
-        print(&quot;writing: ifcfg-&quot; + ifaces[&quot;DEVICE&quot;])
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">write_cfgfile</span>(path, ifacelist):
+    <span style="color:#75715e"># Write the file new</span>
+    <span style="color:#66d9ef">for</span> ifaces <span style="color:#f92672">in</span> ifacelist:
+        <span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#34;writing: ifcfg-&#34;</span> <span style="color:#f92672">+</span> ifaces[<span style="color:#e6db74">&#34;DEVICE&#34;</span>])
         
-        with open(path + &quot;ifcfg-&quot; + ifaces[&quot;DEVICE&quot;], 'w') as f:
-            for key, value in ifaces.items():
-                f.write(key + '=&quot;' + value + '&quot;\n')
+        <span style="color:#66d9ef">with</span> open(path <span style="color:#f92672">+</span> <span style="color:#e6db74">&#34;ifcfg-&#34;</span> <span style="color:#f92672">+</span> ifaces[<span style="color:#e6db74">&#34;DEVICE&#34;</span>], <span style="color:#e6db74">&#39;w&#39;</span>) <span style="color:#66d9ef">as</span> f:
+            <span style="color:#66d9ef">for</span> key, value <span style="color:#f92672">in</span> ifaces<span style="color:#f92672">.</span>items():
+                f<span style="color:#f92672">.</span>write(key <span style="color:#f92672">+</span> <span style="color:#e6db74">&#39;=&#34;&#39;</span> <span style="color:#f92672">+</span> value <span style="color:#f92672">+</span> <span style="color:#e6db74">&#39;&#34;</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#39;</span>)
 
-def get_ilo_hostinfo(ilooutfile):
-    xmlrequest=&quot;&quot;&quot;&lt;RIBCL version=&quot;2.21&quot;&gt;
-    &lt;LOGIN USER_LOGIN=&quot;adminname&quot; PASSWORD=&quot;password&quot;&gt;
-    &lt;SERVER_INFO MODE=&quot;READ&quot; &gt;
-    &lt;GET_HOST_DATA /&gt;
-    &lt;/SERVER_INFO&gt;
-    &lt;/LOGIN&gt;
-    &lt;/RIBCL&gt;&quot;&quot;&quot;
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">get_ilo_hostinfo</span>(ilooutfile):
+    xmlrequest<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;&#34;&lt;RIBCL version=&#34;2.21&#34;&gt;
+</span><span style="color:#e6db74">    &lt;LOGIN USER_LOGIN=&#34;adminname&#34; PASSWORD=&#34;password&#34;&gt;
+</span><span style="color:#e6db74">    &lt;SERVER_INFO MODE=&#34;READ&#34; &gt;
+</span><span style="color:#e6db74">    &lt;GET_HOST_DATA /&gt;
+</span><span style="color:#e6db74">    &lt;/SERVER_INFO&gt;
+</span><span style="color:#e6db74">    &lt;/LOGIN&gt;
+</span><span style="color:#e6db74">    &lt;/RIBCL&gt;&#34;&#34;&#34;</span>
     
-    subprocess.Popen([&quot;hponcfg&quot;, &quot;-i&quot;, &quot;-l&quot;, ilooutfile], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(xmlrequest)
+    subprocess<span style="color:#f92672">.</span>Popen([<span style="color:#e6db74">&#34;hponcfg&#34;</span>, <span style="color:#e6db74">&#34;-i&#34;</span>, <span style="color:#e6db74">&#34;-l&#34;</span>, ilooutfile], stdin<span style="color:#f92672">=</span>subprocess<span style="color:#f92672">.</span>PIPE, stdout<span style="color:#f92672">=</span>subprocess<span style="color:#f92672">.</span>PIPE)<span style="color:#f92672">.</span>communicate(xmlrequest)
 
-def parse_udev_interfaces():
-    sys_files = glob.glob('/sys/class/net/eth*/address')
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">parse_udev_interfaces</span>():
+    sys_files <span style="color:#f92672">=</span> glob<span style="color:#f92672">.</span>glob(<span style="color:#e6db74">&#39;/sys/class/net/eth*/address&#39;</span>)
     
-    maclist = []
+    maclist <span style="color:#f92672">=</span> []
     
-    for infile in sys_files:
-        with open(infile, 'r') as f:
-            maclist.append(f.read().rstrip().upper())
+    <span style="color:#66d9ef">for</span> infile <span style="color:#f92672">in</span> sys_files:
+        <span style="color:#66d9ef">with</span> open(infile, <span style="color:#e6db74">&#39;r&#39;</span>) <span style="color:#66d9ef">as</span> f:
+            maclist<span style="color:#f92672">.</span>append(f<span style="color:#f92672">.</span>read()<span style="color:#f92672">.</span>rstrip()<span style="color:#f92672">.</span>upper())
     
-    for mac in sorted(maclist):
-        if mac not in ifacedict.values():
-            ifacedict[len(ifacedict)] = mac
+    <span style="color:#66d9ef">for</span> mac <span style="color:#f92672">in</span> sorted(maclist):
+        <span style="color:#66d9ef">if</span> mac <span style="color:#f92672">not</span> <span style="color:#f92672">in</span> ifacedict<span style="color:#f92672">.</span>values():
+            ifacedict[len(ifacedict)] <span style="color:#f92672">=</span> mac
 
-if __name__ == '__main__':
-    # TODO: call hponcfg and generate XML-File or parse XML Output directly
-    path = &quot;/etc/sysconfig/network-scripts/&quot;
-    ilooutfile = &quot;/tmp/iloout.xml&quot;
+<span style="color:#66d9ef">if</span> __name__ <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;__main__&#39;</span>:
+    <span style="color:#75715e"># TODO: call hponcfg and generate XML-File or parse XML Output directly</span>
+    path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/etc/sysconfig/network-scripts/&#34;</span>
+    ilooutfile <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/tmp/iloout.xml&#34;</span>
     
-    ifacedict = {}
-    ifacelist = []
+    ifacedict <span style="color:#f92672">=</span> {}
+    ifacelist <span style="color:#f92672">=</span> []
     
-    # supplied by Foreman
-    ipaddr = '&lt;%= @host.ip -%&gt;'
-    netmask = '&lt;%= @host.params[&quot;netmask&quot;] -%&gt;'
-    gateway = '&lt;%= @host.params[&quot;gateway&quot;] -%&gt;'
+    <span style="color:#75715e"># supplied by Foreman</span>
+    ipaddr <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;&lt;%= @host.ip -%&gt;&#39;</span>
+    netmask <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;&lt;%= @host.params[&#34;netmask&#34;] -%&gt;&#39;</span>
+    gateway <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;&lt;%= @host.params[&#34;gateway&#34;] -%&gt;&#39;</span>
     
-    # testing
-    #ipaddr = '192.168.0.10'
-    #netmask = '255.255.255.0'
-    #gateway = '192.168.0.254'
+    <span style="color:#75715e"># testing</span>
+    <span style="color:#75715e">#ipaddr = &#39;192.168.0.10&#39;</span>
+    <span style="color:#75715e">#netmask = &#39;255.255.255.0&#39;</span>
+    <span style="color:#75715e">#gateway = &#39;192.168.0.254&#39;</span>
 
     get_ilo_hostinfo(ilooutfile)
-    ifacedict = parse_ilo_interfaces(ilooutfile)
+    ifacedict <span style="color:#f92672">=</span> parse_ilo_interfaces(ilooutfile)
     
     parse_udev_interfaces()
     
-    # Bonding Interface
-    cfg_params = gen_config_params(&quot;bond&quot;, &quot;0&quot;, ip=ipaddr, nm=netmask, gw=gateway)
-    ifacelist.append(cfg_params)
+    <span style="color:#75715e"># Bonding Interface</span>
+    cfg_params <span style="color:#f92672">=</span> gen_config_params(<span style="color:#e6db74">&#34;bond&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, ip<span style="color:#f92672">=</span>ipaddr, nm<span style="color:#f92672">=</span>netmask, gw<span style="color:#f92672">=</span>gateway)
+    ifacelist<span style="color:#f92672">.</span>append(cfg_params)
     
-    # Ethernet Interfaces
-    for nr, mac in ifacedict.items():
-        cfg_params = gen_config_params(&quot;eth&quot;, str(nr), mac)
-        if len(ifacedict) == 4 and nr % 2:
-            del cfg_params[&quot;SLAVE&quot;]
-            del cfg_params[&quot;MASTER&quot;]
-            cfg_params[&quot;ONBOOT&quot;] = &quot;no&quot;
-        ifacelist.append(cfg_params)
+    <span style="color:#75715e"># Ethernet Interfaces</span>
+    <span style="color:#66d9ef">for</span> nr, mac <span style="color:#f92672">in</span> ifacedict<span style="color:#f92672">.</span>items():
+        cfg_params <span style="color:#f92672">=</span> gen_config_params(<span style="color:#e6db74">&#34;eth&#34;</span>, str(nr), mac)
+        <span style="color:#66d9ef">if</span> len(ifacedict) <span style="color:#f92672">==</span> <span style="color:#ae81ff">4</span> <span style="color:#f92672">and</span> nr <span style="color:#f92672">%</span> <span style="color:#ae81ff">2</span>:
+            <span style="color:#66d9ef">del</span> cfg_params[<span style="color:#e6db74">&#34;SLAVE&#34;</span>]
+            <span style="color:#66d9ef">del</span> cfg_params[<span style="color:#e6db74">&#34;MASTER&#34;</span>]
+            cfg_params[<span style="color:#e6db74">&#34;ONBOOT&#34;</span>] <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;no&#34;</span>
+        ifacelist<span style="color:#f92672">.</span>append(cfg_params)
         
     write_cfgfile(path, ifacelist)
-</code></pre>
-<p>As a side note, the HP SPP packages are available on <a href="http://downloads.linux.hp.com/SDR/downloads/SPP/rhel/$release/$arch/current/">HP site</a>.</p>
+</code></pre></div><p>As a side note, the HP SPP packages are available on <a href="http://downloads.linux.hp.com/SDR/downloads/SPP/rhel/$release/$arch/current/">HP site</a>.</p>
 
 
           </main>
