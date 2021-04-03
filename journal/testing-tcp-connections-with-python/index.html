@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/"><strong>Home</strong></a>
+  
+  <a href="/journal/"><strong>Journal</strong></a>
+  
+  <a href="/publications/"><strong>Publications</strong></a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>Testing Tcp Connections With Python</h2>
+  <hr>
+<h2 id="tags-python-networking">layout: post
+title: &ldquo;Testing TCP connections&rdquo;
+category: sysadmin
+tags: [python, networking]</h2>
+<p>{% include JB/setup %}</p>
+<p>Here&rsquo;s a quick snippet of python code that attempts to establish a TCP connection and reports whether it was successful or not. Netcat is a lot better suited for this role, but sometimes you may not be able to install it. In these situations this little script can come in handy:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#75715e">#!/usr/bin/env python</span>
+ 
+<span style="color:#f92672">import</span> socket
+<span style="color:#f92672">import</span> time
+ 
+HOST<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>
+PORT<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>
+TIMEOUT<span style="color:#f92672">=</span><span style="color:#ae81ff">1.0</span>
+ 
+<span style="color:#66d9ef">while</span> True:
+    <span style="color:#66d9ef">try</span>:
+        s <span style="color:#f92672">=</span> socket<span style="color:#f92672">.</span>socket(socket<span style="color:#f92672">.</span>AF_INET, socket<span style="color:#f92672">.</span>SOCK_STREAM)
+        s<span style="color:#f92672">.</span>settimeout(TIMEOUT)
+        s<span style="color:#f92672">.</span>connect((HOST, PORT))
+        <span style="color:#66d9ef">print</span> <span style="color:#e6db74">&#34;[</span><span style="color:#e6db74">%s</span><span style="color:#e6db74">] Connection established&#34;</span> <span style="color:#f92672">%</span> time<span style="color:#f92672">.</span>strftime(<span style="color:#e6db74">&#34;%H:%M:%S&#34;</span>)
+        time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">1</span>)
+        s<span style="color:#f92672">.</span>close()
+    <span style="color:#66d9ef">except</span>:
+        <span style="color:#66d9ef">print</span> <span style="color:#e6db74">&#34;[</span><span style="color:#e6db74">%s</span><span style="color:#e6db74">] Cannot connect&#34;</span> <span style="color:#f92672">%</span> time<span style="color:#f92672">.</span>strftime(<span style="color:#e6db74">&#34;%H:%M:%S&#34;</span>)
+
+</code></pre></div>
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>
