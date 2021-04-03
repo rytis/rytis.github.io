@@ -137,5 +137,15 @@ So I needed a simple client that would implement the four basic HTTP request typ
 Essentially, I needed a simple wrapper around httplib that simplified the HTTP calls, and allowed me to do something along those lines:</description>
     </item>
     
+    <item>
+      <title>Using Fabric With Vagrant</title>
+      <link>https://pages.pulegium.eu/journal/using-fabric-with-vagrant/</link>
+      <pubDate>Sat, 30 Apr 2011 07:37:28 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/using-fabric-with-vagrant/</guid>
+      <description>Vagrant is a great tool that lets you create and destroy VirtualBox VMs with only few commands. It also supports Puppet and Chef out of the box. This means that you can have just a single OS image, which you then can customise to your needs on a per project basis.
+Puppet (or Chef for that matter, however I&amp;rsquo;m not a big fan of it) is a nice tool, but I find that writing manifests for quick and one-off tasks can be bit time consuming, especially if the task boils down to a simple shell one liner.</description>
+    </item>
+    
   </channel>
 </rss>

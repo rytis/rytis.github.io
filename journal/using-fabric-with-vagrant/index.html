@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/"><strong>Home</strong></a>
+  
+  <a href="/journal/"><strong>Journal</strong></a>
+  
+  <a href="/publications/"><strong>Publications</strong></a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>Using Fabric With Vagrant</h2>
+  <p><a href="http://vagrantup.com/">Vagrant</a> is a great tool that lets you create and destroy <a href="https://www.virtualbox.org/">VirtualBox</a> VMs with only few commands. It also supports <a href="http://www.puppetlabs.com/">Puppet</a> and <a href="http://wiki.opscode.com/display/chef/Home">Chef</a> out of the box. This means that you can have just a single OS image, which you then can customise to your needs on a per project basis.</p>
+<p>Puppet (or Chef for that matter, however I&rsquo;m not a big fan of it) is a nice tool, but I find that writing manifests for quick and one-off tasks can be bit time consuming, especially if the task boils down to a simple shell one liner.</p>
+<p>You might have guessed that I&rsquo;m going to introduce yet another tool to the deployment stack. I tend to do all the fine grained post-install and post-configure tasks with <a href="http://www.fabfile.org/">Fabric</a>. As an alternative to it is another great tool called <a href="https://fedorahosted.org/func/">Func</a>. I think Func is more heavyweight and better suited to manage larger estates, but I&rsquo;m willing to be convinced otherwise.</p>
+<p>Let&rsquo;s go back to the Vagrant VM management.</p>
+<p>So you created an OS image (more about this in other post, which I&rsquo;ll write up shortly) or used one created by someone else. You also written a manifest (or recipe) that installs additional packages required by your project (httpd, radis, etc, etc) and you ready to deploy your application.</p>
+<p>As I said, you can do that with Puppet (or Chef) as well, but while it&rsquo;s still in development phase a lot is going to change in the way you structure and deploy the project. So I prefer to use Fabric here.</p>
+<p>Here&rsquo;s how you do it.</p>
+<p>Firstly, create a fabfile.py and place it in the same directory where you have your Vagrantfile. Vagrant uses its own user (called vagrant) to access the VM, so you have to tell Fabric that you wish to use different username. You also need to find out Vagrant SSH key, so that it will be used by Fabric.</p>
+<p>All that happens in the vagrant function in the fabfile.py below:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#f92672">from</span> fabric.api <span style="color:#f92672">import</span> env, local, run
+ 
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">vagrant</span>():
+    <span style="color:#75715e"># change from the default user to &#39;vagrant&#39;</span>
+    env<span style="color:#f92672">.</span>user <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;vagrant&#39;</span>
+    <span style="color:#75715e"># connect to the port-forwarded ssh</span>
+    env<span style="color:#f92672">.</span>hosts <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;127.0.0.1:2222&#39;</span>]
+ 
+    <span style="color:#75715e"># use vagrant ssh key</span>
+    result <span style="color:#f92672">=</span> local(<span style="color:#e6db74">&#39;vagrant ssh_config | grep IdentityFile&#39;</span>, capture<span style="color:#f92672">=</span>True)
+    env<span style="color:#f92672">.</span>key_filename <span style="color:#f92672">=</span> result<span style="color:#f92672">.</span>split()[<span style="color:#ae81ff">1</span>]
+ 
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">uname</span>():
+    run(<span style="color:#e6db74">&#39;uname -a&#39;</span>)
+
+</code></pre></div><p>We set up three configuration parameters in the vagrant function, which then can be chained with any other function in the fabfile. Note that I&rsquo;m using a forwarded SSH port. You can setup host only networking for your VM instance and then use its own IP, but for the sake of simplicity I&rsquo;m not doing that here.</p>
+<p>So now you can manage your Vagrant VM with Fabric:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ fab vagrant uname
+<span style="color:#f92672">[</span>localhost<span style="color:#f92672">]</span> local: vagrant ssh_config | grep IdentityFile
+<span style="color:#f92672">[</span>127.0.0.1:2222<span style="color:#f92672">]</span> Executing task <span style="color:#e6db74">&#39;uname&#39;</span>
+<span style="color:#f92672">[</span>127.0.0.1:2222<span style="color:#f92672">]</span> run: uname -a
+<span style="color:#f92672">[</span>127.0.0.1:2222<span style="color:#f92672">]</span> out: Linux vagrant-fedora-14 2.6.35.6-45.fc14.i686 <span style="color:#75715e">#1 SMP Mon Oct 18 23:56:17 UTC 2010 i686 i686 i386 G[127.0.0.1:2222] out:</span> 
+<span style="color:#f92672">[</span>127.0.0.1:2222<span style="color:#f92672">]</span> out: 
+ 
+Done.
+Disconnecting from 127.0.0.1:2222... <span style="color:#66d9ef">done</span>.
+
+</code></pre></div>
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>
