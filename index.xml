@@ -105,5 +105,15 @@ They also have a nice administration interface, where you can manage your server
 Prerequisites  Oracle VirtualBox installed Vagrant installed (sudo gem install vagrant) VeeWee installed (sudo gem install veewee) CentOS 6.0 i386 DVD ISO downloaded from one of the mirrors listed in http://isoredirect.centos.org/centos/6/isos/i386/  Building a CentOS box  Create working directories and copy the ISO image  $ mkdir -p ~/vagrant/centos60build/iso $ cd ~/vagrant/centos60build $ cp __PATH_TO_THE_ISO_IMAGE__ .</description>
     </item>
     
+    <item>
+      <title>AJAX User request Authentication in TastyPie</title>
+      <link>https://pages.pulegium.eu/journal/ajax-user-authentication-in-tastypie/</link>
+      <pubDate>Mon, 14 Nov 2011 07:27:15 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/ajax-user-authentication-in-tastypie/</guid>
+      <description>If you&amp;rsquo;re using built in TastyPie user authentication/authorization (HTTP Basic Auth) you might run into a problem with AJAX requests. Here&amp;rsquo;s a typical situation:
+ Your main web application is a Django application It requires users to authenticate The application also exposes some functionality via (TastyPie) API, which requires user authentication Your pages uses JavaScript to access this API  When users log on to the Django web application, they get redirected to the standard Dajngo auth pages, where they submit a login form with their credentials.</description>
+    </item>
+    
   </channel>
 </rss>
