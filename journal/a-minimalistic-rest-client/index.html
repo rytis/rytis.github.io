@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/"><strong>Home</strong></a>
+  
+  <a href="/journal/"><strong>Journal</strong></a>
+  
+  <a href="/publications/"><strong>Publications</strong></a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>A Minimalistic Rest Client</h2>
+  <p>I needed a simple REST client to test a web service that I am developing with <a href="http://www.djangoproject.com/">Django</a> and <a href="http://django-tastypie.readthedocs.org/">TastyPie</a>. Although TastyPie can easily handle a variety of formats (JSON, XML, HTML, &hellip;) I&rsquo;m primarily interested in JSON.</p>
+<p>So I needed a simple client that would implement the four basic HTTP request types (GET, PUT, POST, DELETE) and would be simple enough to use with JSON data payload.</p>
+<p>Essentially, I needed a simple wrapper around <code>httplib</code> that simplified the HTTP calls, and allowed me to do something along those lines:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+result <span style="color:#f92672">=</span> client<span style="color:#f92672">.</span>put(<span style="color:#e6db74">&#39;/api/resource/&#39;</span>, data_json<span style="color:#f92672">=</span>json<span style="color:#f92672">.</span>dumps(request_data))
+result <span style="color:#f92672">=</span> client<span style="color:#f92672">.</span>delete(<span style="color:#e6db74">&#39;/api/resource/&#39;</span>)
+
+</code></pre></div><p>You can find the source code of this library (which I named miniREST) on <a href="https://github.com/rytis/miniREST/">GitHub</a>. It is also available on <a href="http://pypi.python.org/pypi/miniREST/">PyPi</a> and can be installed with <a href="http://pypi.python.org/pypi/pip">PIP</a> package manager.</p>
+<p>What I wanted to show you here is how to handle calls to object methods, that aren.t actually defined as class functions.</p>
+<p>Let me explain what I mean. Going back to the REST client example, I might have defined a class and four methods implementing four different HTTP calls: GET, PUT, POST and DELETE. Maybe something like this:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RESTClient</span>:
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">get</span>(self, uri):
+        result <span style="color:#f92672">=</span> httplib(<span style="color:#e6db74">&#39;GET&#39;</span>, uri)
+        <span style="color:#75715e"># do some data parsing</span>
+        <span style="color:#66d9ef">return</span> result_data
+ 
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">put</span>(self, uri, data):
+        result <span style="color:#f92672">=</span> httplib(<span style="color:#e6db74">&#39;PUT&#39;</span>, uri, body<span style="color:#f92672">=</span>data)
+        <span style="color:#75715e"># do some data parsing</span>
+        <span style="color:#66d9ef">return</span> result_data
+ 
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">post</span>(self, uri, data):
+        result <span style="color:#f92672">=</span> httplib(<span style="color:#e6db74">&#39;POST&#39;</span>, uri, body<span style="color:#f92672">=</span>data)
+        <span style="color:#75715e"># do some data parsing</span>
+        <span style="color:#66d9ef">return</span> result_data
+ 
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">delete</span>(self, uri):
+        result <span style="color:#f92672">=</span> httplib(<span style="color:#e6db74">&#39;DELETE&#39;</span>, uri)
+        <span style="color:#75715e"># do some data parsing</span>
+        <span style="color:#66d9ef">return</span> result_data
+ 
+</code></pre></div><p>This would work, but it doesn&rsquo;t feel quite right. You would be replicating effectively the same code four times. If you find a bug or want to make an improvement in the result data parsing you&rsquo;ll have to make changes in four different functions. This can lead to an inconsistent code behaviour if you forget to change one function or make a mistake while changing it.</p>
+<p>My approach to this problem was to create a generic method that is able to handle all four HTTP requests. Yet I wanted to be able to call GET, PUT, POST and DELETE as object methods . I think it&rsquo;s more readable.</p>
+<p>So I&rsquo;m going to make use of the built-in method <code>__getattr__</code>. This method is called every time if an attribute is not found using the usual methods, for example by looking up the object&rsquo;s <code>__dict__</code> attribute, which contains all attributes of an object as a dictionary.</p>
+<p>The <code>__getattr__</code> method should return either an attribute value or raise an AttributeError exception. This exception will be raised automatically if you try to reference a non-existant attribute and the <code>__getattr__</code> is not defined:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#f92672">&gt;&gt;&gt;</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">C</span>:
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> __init__(self):
+<span style="color:#f92672">...</span>   <span style="color:#66d9ef">pass</span>
+<span style="color:#f92672">...</span>
+<span style="color:#f92672">&gt;&gt;&gt;</span> o <span style="color:#f92672">=</span> C()
+<span style="color:#f92672">&gt;&gt;&gt;</span> o<span style="color:#f92672">.</span>foo
+Traceback (most recent call last):
+  File <span style="color:#e6db74">&#34;&#34;</span>, line <span style="color:#ae81ff">1</span>, <span style="color:#f92672">in</span>
+<span style="color:#a6e22e">AttributeError</span>: C instance has no attribute <span style="color:#e6db74">&#39;foo&#39;</span>
+
+</code></pre></div><p>However if the <code>__getattr__</code> is defined it will be called instead:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#f92672">&gt;&gt;&gt;</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">C</span>:
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> __init__(self):
+<span style="color:#f92672">...</span>   self<span style="color:#f92672">.</span>bar <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> __getattr__(self, attribute):
+<span style="color:#f92672">...</span>   <span style="color:#66d9ef">print</span> <span style="color:#e6db74">&#34;You&#39;re trying to read </span><span style="color:#e6db74">%s</span><span style="color:#e6db74">, but it&#39;s not initialised yet&#34;</span> <span style="color:#f92672">%</span> attribute
+<span style="color:#f92672">...</span>   <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>
+<span style="color:#f92672">...</span>
+<span style="color:#f92672">&gt;&gt;&gt;</span> o <span style="color:#f92672">=</span> C()
+<span style="color:#f92672">&gt;&gt;&gt;</span> r <span style="color:#f92672">=</span> o<span style="color:#f92672">.</span>bar
+<span style="color:#f92672">&gt;&gt;&gt;</span> <span style="color:#66d9ef">print</span> r
+<span style="color:#ae81ff">1</span>
+<span style="color:#f92672">&gt;&gt;&gt;</span> r <span style="color:#f92672">=</span> o<span style="color:#f92672">.</span>foo
+You<span style="color:#e6db74">&#39;re trying to read foo, but it&#39;</span>s <span style="color:#f92672">not</span> initialised yet
+<span style="color:#f92672">&gt;&gt;&gt;</span> <span style="color:#66d9ef">print</span> r
+<span style="color:#ae81ff">0</span>
+
+</code></pre></div><p>OK, we&rsquo;re getting there now. But there is a slight problem. The <code>__getattr__</code> returns a computed value of an attribute. It&rsquo;s easy for variables, but we want to reference a function, so <code>__getattr__</code> needs to return a reference to a method and not the computed value.</p>
+<p>This is easy, but our function would not know under what name it has been called:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#f92672">&gt;&gt;&gt;</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">C</span>:
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">_my_func</span>(self):
+<span style="color:#f92672">...</span>   <span style="color:#66d9ef">print</span> <span style="color:#e6db74">&#34;in a function&#34;</span>
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> __getattr__(self, attr):
+<span style="color:#f92672">...</span>   <span style="color:#66d9ef">return</span> self<span style="color:#f92672">.</span>_my_func
+<span style="color:#f92672">...</span>
+<span style="color:#f92672">&gt;&gt;&gt;</span> o <span style="color:#f92672">=</span> C()
+<span style="color:#f92672">&gt;&gt;&gt;</span> o<span style="color:#f92672">.</span>test()
+<span style="color:#f92672">in</span> a function
+<span style="color:#f92672">&gt;&gt;&gt;</span> o<span style="color:#f92672">.</span>foo()
+<span style="color:#f92672">in</span> a function
+
+</code></pre></div><p>Because we return a reference to a function (as opposed to actually calling it and returning a result) we can.t pass any arguments to it that would tell under what name it&rsquo;s been called.</p>
+<p>One of the easiest ways to solve this is to store the name as an object attribute and then look it up from the function:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+<span style="color:#f92672">&gt;&gt;&gt;</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">C</span>:
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> __init__(self):
+<span style="color:#f92672">...</span>   self<span style="color:#f92672">.</span>func_name <span style="color:#f92672">=</span> None
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">_my_func</span>(self):
+<span style="color:#f92672">...</span>   <span style="color:#66d9ef">print</span> <span style="color:#e6db74">&#34;Function called as &#39;</span><span style="color:#e6db74">%s</span><span style="color:#e6db74">&#39;&#34;</span> <span style="color:#f92672">%</span> self<span style="color:#f92672">.</span>func_name
+<span style="color:#f92672">...</span>  <span style="color:#66d9ef">def</span> __getattr__(self, attr):
+<span style="color:#f92672">...</span>   self<span style="color:#f92672">.</span>func_name <span style="color:#f92672">=</span> attr
+<span style="color:#f92672">...</span>   <span style="color:#66d9ef">return</span> self<span style="color:#f92672">.</span>_my_func
+<span style="color:#f92672">...</span>
+<span style="color:#f92672">&gt;&gt;&gt;</span> o <span style="color:#f92672">=</span> C()
+<span style="color:#f92672">&gt;&gt;&gt;</span> o<span style="color:#f92672">.</span>foo()
+Function called <span style="color:#66d9ef">as</span> <span style="color:#e6db74">&#39;foo&#39;</span>
+<span style="color:#f92672">&gt;&gt;&gt;</span> o<span style="color:#f92672">.</span>bar()
+Function called <span style="color:#66d9ef">as</span> <span style="color:#e6db74">&#39;bar&#39;</span>
+
+</code></pre></div><p>And this is exactly the behaviour I was after. Now it&rsquo;s an exercise to the reader . can you think of any problems that this approach may cause?</p>
+
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>

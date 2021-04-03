@@ -126,5 +126,16 @@ Here&amp;rsquo;s a quick snippet of python code that attempts to establish a TCP
 #!/usr/bin/env python import socket import time HOST=&amp;#34;&amp;#34; PORT=&amp;#34;&amp;#34; TIMEOUT=1.</description>
     </item>
     
+    <item>
+      <title>A Minimalistic Rest Client</title>
+      <link>https://pages.pulegium.eu/journal/a-minimalistic-rest-client/</link>
+      <pubDate>Sun, 01 May 2011 07:32:47 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/a-minimalistic-rest-client/</guid>
+      <description>I needed a simple REST client to test a web service that I am developing with Django and TastyPie. Although TastyPie can easily handle a variety of formats (JSON, XML, HTML, &amp;hellip;) I&amp;rsquo;m primarily interested in JSON.
+So I needed a simple client that would implement the four basic HTTP request types (GET, PUT, POST, DELETE) and would be simple enough to use with JSON data payload.
+Essentially, I needed a simple wrapper around httplib that simplified the HTTP calls, and allowed me to do something along those lines:</description>
+    </item>
+    
   </channel>
 </rss>
