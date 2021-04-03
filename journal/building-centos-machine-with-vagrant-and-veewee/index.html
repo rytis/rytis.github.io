@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>Pages</title>
+</head>
+<body>
+      <div class="container"><header>
+  <h1>Pages</h1>
+</header>
+<nav>
+  <a href="/"><strong>Home</strong></a>
+  
+  <a href="/journal/"><strong>Journal</strong></a>
+  
+  <a href="/publications/"><strong>Publications</strong></a>
+  
+</nav>
+<div id="content">
+          <main>
+  <h2>Building CentOS Machine With Vagrant and VeeWee</h2>
+  <p>This is more of a quick checklist for building a CentOS box with Vagrant and VeeWee than a real blog post.</p>
+<h3 id="prerequisites">Prerequisites</h3>
+<ul>
+<li>Oracle VirtualBox installed</li>
+<li>Vagrant installed (<code>sudo gem install vagrant</code>)</li>
+<li>VeeWee installed (<code>sudo gem install veewee</code>)</li>
+<li>CentOS 6.0 i386 DVD ISO downloaded from one of the mirrors listed in <a href="http://isoredirect.centos.org/centos/6/isos/i386/">http://isoredirect.centos.org/centos/6/isos/i386/</a></li>
+</ul>
+<h3 id="building-a-centos-box">Building a CentOS box</h3>
+<ul>
+<li>Create working directories and copy the ISO image</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ mkdir -p ~/vagrant/centos60build/iso
+$ cd ~/vagrant/centos60build
+$ cp __PATH_TO_THE_ISO_IMAGE__ ./iso/
+
+</code></pre></div><ul>
+<li>Create a box definition</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ vagrant basebox define centos60 CentOS-6.0-i386
+
+</code></pre></div><ul>
+<li>Make any changes you need to the definition file in <code>definitions/centos60/definition.rb</code>. Make sure the name of the ISO and its MD5 are correct.</li>
+<li>Adjust postinstall and kickstart files if you need to</li>
+<li>Kickstart a Virtual Machine with CentOS 6.0 (this is going to take a while)</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ vagrant basebox build centos60
+
+</code></pre></div><ul>
+<li>Check that it is functional</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ vagrant basebox validate centos60
+
+</code></pre></div><ul>
+<li>Build a Vagrant box file</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ vagrant basebox export centos60
+
+</code></pre></div><ul>
+<li>Import it to Vagrant</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ vagrant box add centos60 centos60.box
+
+</code></pre></div><h3 id="using-your-new-box">Using your new box</h3>
+<p>To spin off a new instance, run the usual Vagrant commands:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">
+$ vagrant init centos60
+$ vagrant up
+$ vagrant ssh
+
+</code></pre></div><p>Check out <a href="../../../../2011/04/30/use-fabric-on-vagrant-instances">these instructions</a> on how to set up Fabric so that it can talk to your Vagrant VM instances.</p>
+
+
+          </main>
+        </div><footer>
+  <small>&copy; 2021 Rytis Sileika</small>
+</footer>
+</div>
+    </body>
+</html>

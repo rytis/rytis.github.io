@@ -95,5 +95,15 @@ Why use CentOS/RHEL version 5.7 ? RHEL5 is an old product. Released on 2007-03-1
 They also have a nice administration interface, where you can manage your servers, request IP ranges, control bandwidth monitoring, and request server restarts.</description>
     </item>
     
+    <item>
+      <title>Building CentOS Machine With Vagrant and VeeWee</title>
+      <link>https://pages.pulegium.eu/journal/building-centos-machine-with-vagrant-and-veewee/</link>
+      <pubDate>Tue, 29 Nov 2011 07:21:33 +0100</pubDate>
+      
+      <guid>https://pages.pulegium.eu/journal/building-centos-machine-with-vagrant-and-veewee/</guid>
+      <description>This is more of a quick checklist for building a CentOS box with Vagrant and VeeWee than a real blog post.
+Prerequisites  Oracle VirtualBox installed Vagrant installed (sudo gem install vagrant) VeeWee installed (sudo gem install veewee) CentOS 6.0 i386 DVD ISO downloaded from one of the mirrors listed in http://isoredirect.centos.org/centos/6/isos/i386/  Building a CentOS box  Create working directories and copy the ISO image  $ mkdir -p ~/vagrant/centos60build/iso $ cd ~/vagrant/centos60build $ cp __PATH_TO_THE_ISO_IMAGE__ .</description>
+    </item>
+    
   </channel>
 </rss>
